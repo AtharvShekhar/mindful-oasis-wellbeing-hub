@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Check, ArrowRight, Calendar as CalendarIcon, BrainCircuit, Sparkles } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar"; // Import the Calendar component
+import { Check, ArrowRight, CalendarIcon, BrainCircuit, Sparkles } from "lucide-react";
 import {
   BarChart,
   Bar,

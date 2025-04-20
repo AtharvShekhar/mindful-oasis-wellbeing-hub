@@ -1,799 +1,677 @@
-
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
-import { Calendar } from "@/components/ui/calendar";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Users, 
-  MessageSquare, 
-  User, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle,
-  Calendar as CalendarIconSolid,
-  Clock4
-} from "lucide-react";
-import { format, addDays, addWeeks, isSameDay, isAfter, isBefore, parseISO } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Calendar } from "@/components/ui/calendar"; // Import the Calendar component
+import { Check, ArrowRight, CalendarIcon, BrainCircuit, Sparkles } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+} from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/AuthProvider";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
-// Mock therapist data
-const therapists = [
-  {
-    id: "t1",
-    name: "Dr. Sarah Johnson",
-    specialty: "Anxiety & Depression",
-    experience: "15 years",
-    bio: "Specializes in cognitive behavioral therapy for anxiety and depression. Dr. Johnson has extensive experience helping clients develop practical strategies to manage symptoms and improve quality of life.",
-    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVuZHx8fHx8fA%3D%3D&auto=format&fit=crop&w=1374&q=80",
-    availability: [10, 11, 14, 15, 16],
-    nextAvailable: addDays(new Date(), 2),
-  },
-  {
-    id: "t2",
-    name: "Dr. Michael Chen",
-    specialty: "Trauma & PTSD",
-    experience: "12 years",
-    bio: "Focuses on trauma-informed care and EMDR therapy. Dr. Chen creates a safe space for clients to process traumatic experiences and develop resilience.",
-    image: "https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVuZHx8fHx8fA%3D%3D&auto=format&fit=crop&w=1374&q=80",
-    availability: [9, 10, 13, 14, 17],
-    nextAvailable: addDays(new Date(), 1),
-  },
-  {
-    id: "t3",
-    name: "Dr. Jessica Williams",
-    specialty: "Relationships & Family",
-    experience: "10 years",
-    bio: "Specializes in couples therapy and family counseling. Dr. Williams helps clients improve communication, resolve conflicts, and build healthier relationships.",
-    image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVuZHx8fHx8fA%3D%3D&auto=format&fit=crop&w=1776&q=80",
-    availability: [11, 12, 13, 15, 16],
-    nextAvailable: addDays(new Date(), 3),
-  },
-  {
-    id: "t4",
-    name: "Dr. David Rodriguez",
-    specialty: "Stress Management",
-    experience: "8 years",
-    bio: "Focuses on mindfulness-based approaches to stress management. Dr. Rodriguez helps clients develop practical coping skills for managing stress in daily life.",
-    image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1770&q=80",
-    availability: [9, 10, 11, 14, 16],
-    nextAvailable: addDays(new Date(), 2),
-  },
-];
-
-type AppointmentStatus = "Confirmed" | "Pending" | "Rescheduled" | "Cancelled" | "Completed";
-
-type Appointment = {
+type Mood = {
   id: string;
-  therapistId: string;
-  therapist: string;
-  date: string;
-  time: string;
-  type: "Video Session" | "Phone Session" | "In-Person Session";
-  status: AppointmentStatus;
-  notes?: string;
+  date: Date;
+  mood: number; // 1-5 scale
+  notes: string;
+  tags: string[];
 };
 
-// Mock upcoming appointments
-const initialAppointments: Appointment[] = [
+type QuizQuestion = {
+  id: number;
+  question: string;
+  options: {
+    value: number;
+    label: string;
+  }[];
+};
+
+const MOOD_LABELS: Record<number, string> = {
+  1: "Very Low",
+  2: "Low",
+  3: "Neutral",
+  4: "Good",
+  5: "Excellent",
+};
+
+const MOOD_COLORS: Record<number, string> = {
+  1: "#76A9FA", // Blue-ish - calming, not too negative
+  2: "#93C5FD",
+  3: "#C4B5FD", // Purple - neutral
+  4: "#DDD6FE",
+  5: "#9B87F5", // Purple - positive
+};
+
+// Mental health assessment questions
+const moodQuizQuestions: QuizQuestion[] = [
   {
-    id: "a1",
-    therapistId: "t1",
-    therapist: "Dr. Sarah Johnson",
-    date: format(addDays(new Date(), 5), "yyyy-MM-dd"),
-    time: "10:00 AM",
-    type: "Video Session",
-    status: "Confirmed",
-    notes: "Follow-up on anxiety management techniques"
+    id: 1,
+    question: "How would you rate your overall mood today?",
+    options: [
+      { value: 1, label: "Very low - I feel terrible" },
+      { value: 2, label: "Low - I'm feeling down" },
+      { value: 3, label: "Neutral - I'm okay" },
+      { value: 4, label: "Good - I'm feeling positive" },
+      { value: 5, label: "Excellent - I feel great" }
+    ]
   },
   {
-    id: "a2",
-    therapistId: "t2",
-    therapist: "Dr. Michael Chen",
-    date: format(addDays(new Date(), 12), "yyyy-MM-dd"),
-    time: "2:00 PM",
-    type: "Video Session",
-    status: "Scheduled",
+    id: 2,
+    question: "How would you rate your energy level today?",
+    options: [
+      { value: 1, label: "Very low energy" },
+      { value: 2, label: "Low energy" },
+      { value: 3, label: "Moderate energy" },
+      { value: 4, label: "Good energy" },
+      { value: 5, label: "High energy" }
+    ]
   },
   {
-    id: "a3",
-    therapistId: "t1",
-    therapist: "Dr. Sarah Johnson",
-    date: format(addDays(new Date(), -7), "yyyy-MM-dd"),
-    time: "3:30 PM",
-    type: "Video Session",
-    status: "Completed",
-    notes: "Initial consultation"
+    id: 3,
+    question: "How would you rate your anxiety level today?",
+    options: [
+      { value: 5, label: "No anxiety" },
+      { value: 4, label: "Slight anxiety" },
+      { value: 3, label: "Moderate anxiety" },
+      { value: 2, label: "High anxiety" },
+      { value: 1, label: "Severe anxiety" }
+    ]
   },
+  {
+    id: 4,
+    question: "How well did you sleep last night?",
+    options: [
+      { value: 1, label: "Very poorly" },
+      { value: 2, label: "Poorly" },
+      { value: 3, label: "Average" },
+      { value: 4, label: "Well" },
+      { value: 5, label: "Very well" }
+    ]
+  },
+  {
+    id: 5,
+    question: "How would you rate your stress level today?",
+    options: [
+      { value: 5, label: "No stress" },
+      { value: 4, label: "Minimal stress" },
+      { value: 3, label: "Moderate stress" },
+      { value: 2, label: "High stress" },
+      { value: 1, label: "Extreme stress" }
+    ]
+  }
 ];
 
-const Appointments = () => {
-  const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedTherapist, setSelectedTherapist] = useState<string | undefined>();
-  const [selectedTime, setSelectedTime] = useState<string | undefined>();
-  const [sessionType, setSessionType] = useState<string>("video");
-  const [notes, setNotes] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<string>("book");
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [isRescheduling, setIsRescheduling] = useState(false);
-  const [openRescheduleDialog, setOpenRescheduleDialog] = useState(false);
-  const [openCancelDialog, setOpenCancelDialog] = useState(false);
-  const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
-  const [rescheduleTime, setRescheduleTime] = useState<string | undefined>();
-  const [isLoading, setIsLoading] = useState(false);
-  
+const MoodTracker = () => {
+  // Demo data
+  const [moodHistory, setMoodHistory] = useState<Mood[]>([
+    {
+      id: "1",
+      date: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+      mood: 3,
+      notes: "Feeling average today. Work was okay, nothing special.",
+      tags: ["work", "neutral"],
+    },
+    {
+      id: "2",
+      date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      mood: 2,
+      notes: "Stressed about the project deadline. Not sleeping well.",
+      tags: ["work", "stress", "sleep"],
+    },
+    {
+      id: "3",
+      date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+      mood: 4,
+      notes: "Had a good session with my therapist. Feeling more positive.",
+      tags: ["therapy", "positive"],
+    },
+    {
+      id: "4",
+      date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      mood: 5,
+      notes: "Great day! Finished my project and got positive feedback.",
+      tags: ["work", "achievement"],
+    },
+    {
+      id: "5",
+      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      mood: 3,
+      notes: "Back to normal. Relaxed evening with friends.",
+      tags: ["social", "relaxation"],
+    },
+    {
+      id: "6",
+      date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      mood: 4,
+      notes: "Productive day. Started a new book that I'm enjoying.",
+      tags: ["productive", "reading"],
+    },
+  ]);
+
+  const [currentMood, setCurrentMood] = useState<number | null>(null);
+  const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState("");
+  const [activeTab, setActiveTab] = useState("tracker");
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [quizResult, setQuizResult] = useState<number | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  const handleBookAppointment = () => {
-    if (!selectedDate || !selectedTherapist || !selectedTime) {
-      toast({
-        title: "Missing information",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Simulate network delay
-    setTimeout(() => {
-      const therapist = therapists.find(t => t.name === selectedTherapist);
-      
-      if (!therapist) {
-        toast({
-          title: "Error",
-          description: "Selected therapist not found.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      const newAppointment: Appointment = {
-        id: `a${Date.now()}`,
-        therapistId: therapist.id,
-        therapist: selectedTherapist,
-        date: format(selectedDate, "yyyy-MM-dd"),
-        time: selectedTime,
-        type: sessionType === "video" 
-          ? "Video Session" 
-          : sessionType === "phone" 
-            ? "Phone Session" 
-            : "In-Person Session",
-        status: "Confirmed",
-        notes: notes || undefined
-      };
-
-      setAppointments(prev => [...prev, newAppointment]);
-
-      // Reset form
-      setSelectedTherapist(undefined);
-      setSelectedTime(undefined);
-      setSessionType("video");
-      setNotes("");
-      setActiveTab("upcoming");
-      
-      setIsLoading(false);
-
-      toast({
-        title: "Appointment Booked!",
-        description: `Your appointment with ${selectedTherapist} on ${format(selectedDate, "PPP")} at ${selectedTime} has been scheduled.`,
-      });
-    }, 1000);
+  const handleMoodSelect = (mood: number) => {
+    setCurrentMood(mood);
   };
 
-  const handleRescheduleAppointment = () => {
-    if (!rescheduleDate || !rescheduleTime || !selectedAppointment) {
-      toast({
-        title: "Missing information",
-        description: "Please select a new date and time.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleSubmit = () => {
+    if (currentMood === null) return;
 
-    setIsLoading(true);
+    const newMood: Mood = {
+      id: Date.now().toString(),
+      date: new Date(),
+      mood: currentMood,
+      notes: notes,
+      tags: tags.split(",").map(tag => tag.trim()).filter(Boolean),
+    };
 
-    // Simulate network delay
-    setTimeout(() => {
-      setAppointments(prev => 
-        prev.map(appointment => 
-          appointment.id === selectedAppointment.id
-            ? {
-                ...appointment,
-                date: format(rescheduleDate, "yyyy-MM-dd"),
-                time: rescheduleTime,
-                status: "Rescheduled"
-              }
-            : appointment
-        )
-      );
-
-      setOpenRescheduleDialog(false);
-      setIsLoading(false);
-      setRescheduleDate(undefined);
-      setRescheduleTime(undefined);
-      setSelectedAppointment(null);
-
-      toast({
-        title: "Appointment Rescheduled",
-        description: `Your appointment has been rescheduled to ${format(rescheduleDate, "PPP")} at ${rescheduleTime}.`,
-      });
-    }, 1000);
-  };
-
-  const handleCancelAppointment = () => {
-    if (!selectedAppointment) return;
-
-    setIsLoading(true);
-
-    // Simulate network delay
-    setTimeout(() => {
-      setAppointments(prev => 
-        prev.map(appointment => 
-          appointment.id === selectedAppointment.id
-            ? { ...appointment, status: "Cancelled" }
-            : appointment
-        )
-      );
-
-      setOpenCancelDialog(false);
-      setIsLoading(false);
-      setSelectedAppointment(null);
-
-      toast({
-        title: "Appointment Cancelled",
-        description: "Your appointment has been cancelled successfully.",
-      });
-    }, 1000);
-  };
-
-  const generateTimeSlots = () => {
-    if (!selectedTherapist || !selectedDate) return [];
+    setMoodHistory(prev => [...prev, newMood]);
+    setCurrentMood(null);
+    setNotes("");
+    setTags("");
     
-    const therapist = therapists.find(t => t.name === selectedTherapist);
-    if (!therapist) return [];
-    
-    return therapist.availability.map(hour => {
-      const time = `${hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`;
-      return { hour, time };
+    toast({
+      title: "Mood tracked!",
+      description: `Your ${MOOD_LABELS[currentMood].toLowerCase()} mood has been recorded.`,
     });
   };
 
-  const getTherapistImage = (id: string) => {
-    const therapist = therapists.find(t => t.id === id);
-    return therapist?.image || "";
+  const handleQuizAnswer = (questionId: number, value: number) => {
+    setQuizAnswers(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
   };
 
-  const getTherapistById = (id: string) => {
-    return therapists.find(t => t.id === id);
-  };
-
-  const getStatusColor = (status: AppointmentStatus) => {
-    switch (status) {
-      case "Confirmed":
-        return "bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-300";
-      case "Pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800/30 dark:text-yellow-300";
-      case "Rescheduled":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-800/30 dark:text-blue-300";
-      case "Cancelled":
-        return "bg-red-100 text-red-800 dark:bg-red-800/30 dark:text-red-300";
-      case "Completed":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-700/30 dark:text-gray-300";
-      default:
-        return "bg-blue-100 text-blue-800 dark:bg-blue-800/30 dark:text-blue-300";
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < moodQuizQuestions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    } else {
+      // Calculate result
+      const total = Object.values(quizAnswers).reduce((sum, val) => sum + val, 0);
+      const average = Math.round(total / moodQuizQuestions.length);
+      setQuizResult(average);
+      setQuizCompleted(true);
+      
+      // If user completes quiz, suggest adding this to mood tracker
+      if (average && !currentMood) {
+        setCurrentMood(average);
+        setActiveTab("tracker");
+        toast({
+          title: "Quiz completed!",
+          description: `Your mood assessment: ${MOOD_LABELS[average]}. We've set this as your current mood.`,
+        });
+      }
     }
   };
 
-  const upcomingAppointments = appointments.filter(
-    appointment => 
-      (appointment.status === "Confirmed" || appointment.status === "Rescheduled" || appointment.status === "Pending") &&
-      isAfter(parseISO(appointment.date), new Date())
-  ).sort((a, b) => {
-    // Sort by date first
-    const dateComparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-    if (dateComparison !== 0) return dateComparison;
-    
-    // If same date, sort by time
-    return a.time.localeCompare(b.time);
+  const resetQuiz = () => {
+    setQuizAnswers({});
+    setCurrentQuestionIndex(0);
+    setQuizCompleted(false);
+    setQuizResult(null);
+  };
+
+  // Calculate average mood
+  const averageMood = moodHistory.length > 0
+    ? (moodHistory.reduce((sum, entry) => sum + entry.mood, 0) / moodHistory.length).toFixed(1)
+    : "N/A";
+
+  // Get most common tags
+  const tagCounts: Record<string, number> = {};
+  moodHistory.forEach(entry => {
+    entry.tags.forEach(tag => {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+    });
   });
 
-  const pastAppointments = appointments.filter(
-    appointment => 
-      appointment.status === "Completed" || 
-      appointment.status === "Cancelled" ||
-      isBefore(parseISO(appointment.date), new Date())
-  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const topTags = Object.entries(tagCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([tag]) => tag);
+
+  // Chart data
+  const chartData = moodHistory.map(entry => ({
+    date: entry.date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    mood: entry.mood,
+    name: MOOD_LABELS[entry.mood],
+  }));
+
+  // Calculate progress in quiz
+  const quizProgress = moodQuizQuestions.length > 0
+    ? ((currentQuestionIndex + 1) / moodQuizQuestions.length) * 100
+    : 0;
 
   return (
     <Layout>
       <div className="min-h-[calc(100vh-64px)] bg-therapy-softPurple/10 dark:bg-therapy-dark/20 py-8 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Therapy Appointments</h1>
+            <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Mood Tracker</h1>
             <p className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-              Schedule sessions with our licensed therapists or manage your upcoming appointments.
+              Monitor your emotional well-being over time and identify patterns that affect your mental health.
             </p>
           </div>
 
-          <Tabs defaultValue="book" value={activeTab} onValueChange={setActiveTab}>
-            <div className="flex justify-center mb-6">
-              <TabsList className="grid grid-cols-2 w-full max-w-md">
-                <TabsTrigger value="book" className="flex items-center gap-2">
-                  <CalendarIconSolid className="h-4 w-4" />
-                  Book Appointment
-                </TabsTrigger>
-                <TabsTrigger value="upcoming" className="flex items-center gap-2">
-                  <Clock4 className="h-4 w-4" />
-                  My Appointments
-                </TabsTrigger>
-              </TabsList>
-            </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+              <TabsTrigger value="tracker" className="flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4" />
+                Mood Tracker
+              </TabsTrigger>
+              <TabsTrigger value="assessment" className="flex items-center gap-2">
+                <BrainCircuit className="w-4 h-4" />
+                Mood Assessment
+              </TabsTrigger>
+            </TabsList>
 
-            <TabsContent value="book">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="therapy-card lg:col-span-1">
+            <TabsContent value="tracker">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {/* Today's Mood Card */}
+                <Card className="therapy-card col-span-1">
                   <CardHeader>
-                    <CardTitle className="text-xl">Select Date</CardTitle>
-                    <CardDescription>Choose your preferred appointment date</CardDescription>
+                    <CardTitle className="text-xl">How are you feeling today?</CardTitle>
+                    <CardDescription>Select your current mood</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={setSelectedDate}
-                      className="rounded-md border"
-                      disabled={(date) => {
-                        // Disable past dates and weekends
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        return (
-                          date < today ||
-                          date.getDay() === 0 ||
-                          date.getDay() === 6
-                        );
-                      }}
-                      initialFocus
-                    />
-                  </CardContent>
-                </Card>
-
-                <Card className="therapy-card lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="text-xl">Schedule Details</CardTitle>
-                    <CardDescription>Select your therapist and session time</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Select Therapist
-                      </label>
-                      <Select onValueChange={(value) => setSelectedTherapist(value)} value={selectedTherapist}>
-                        <SelectTrigger className="input-therapy">
-                          <SelectValue placeholder="Choose a therapist" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectLabel>Therapists</SelectLabel>
-                            {therapists.map((therapist) => (
-                              <SelectItem key={therapist.id} value={therapist.name}>
-                                {therapist.name} - {therapist.specialty}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex justify-between items-center mb-6">
+                      {[1, 2, 3, 4, 5].map((mood) => (
+                        <button
+                          key={mood}
+                          className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform ${
+                            currentMood === mood
+                              ? "ring-2 ring-therapy-primary scale-110"
+                              : "hover:scale-105"
+                          }`}
+                          style={{ backgroundColor: MOOD_COLORS[mood] }}
+                          onClick={() => handleMoodSelect(mood)}
+                        >
+                          <span className="text-lg font-semibold text-white">
+                            {mood}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-
-                    {selectedTherapist && (
-                      <div className="p-4 rounded-lg bg-therapy-softPurple/10 dark:bg-therapy-dark/30">
-                        {therapists
-                          .filter((t) => t.name === selectedTherapist)
-                          .map((therapist) => (
-                            <div key={therapist.id} className="flex items-start gap-4">
-                              <img
-                                src={therapist.image}
-                                alt={therapist.name}
-                                className="w-16 h-16 rounded-full object-cover"
-                              />
-                              <div>
-                                <h4 className="font-medium text-lg">{therapist.name}</h4>
-                                <p className="text-sm text-gray-600 dark:text-gray-300">
-                                  Specialty: {therapist.specialty}
-                                </p>
-                                <p className="text-sm text-gray-600 dark:text-gray-300">
-                                  Experience: {therapist.experience}
-                                </p>
-                                <p className="text-sm mt-2">{therapist.bio}</p>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Available Time Slots
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {generateTimeSlots().map(({ hour, time }) => (
-                          <Button
-                            key={hour}
-                            variant={selectedTime === time ? "default" : "outline"}
-                            className={selectedTime === time ? "bg-therapy-primary" : ""}
-                            onClick={() => setSelectedTime(time)}
-                          >
-                            {time}
-                          </Button>
-                        ))}
-                        {selectedTherapist && generateTimeSlots().length === 0 && (
-                          <p className="col-span-3 text-gray-500 text-sm">
-                            Please select a therapist and date to see available time slots.
-                          </p>
-                        )}
-                        {!selectedTherapist && (
-                          <p className="col-span-3 text-gray-500 text-sm">
-                            Please select a therapist to see available time slots.
-                          </p>
-                        )}
-                      </div>
+                    <div className="flex justify-between px-2 text-xs text-gray-500">
+                      <span>Very Low</span>
+                      <span className="ml-auto">Excellent</span>
                     </div>
-
-                    <div>
+                    <div className="mt-4">
                       <label className="block text-sm font-medium mb-2">
-                        Session Type
-                      </label>
-                      <Select
-                        defaultValue={sessionType}
-                        value={sessionType}
-                        onValueChange={(value) => setSessionType(value)}
-                      >
-                        <SelectTrigger className="input-therapy">
-                          <SelectValue placeholder="Select session type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="video">Video Session</SelectItem>
-                          <SelectItem value="phone">Phone Session</SelectItem>
-                          <SelectItem value="in-person">In-Person Session</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Notes (Optional)
+                        Notes (optional)
                       </label>
                       <Textarea
-                        placeholder="Add any information you'd like your therapist to know before the session"
+                        placeholder="How are you feeling? What happened today?"
                         className="input-therapy min-h-[100px]"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium mb-2">
+                        Tags (comma separated)
+                      </label>
+                      <Input
+                        placeholder="work, exercise, family, stress"
+                        className="input-therapy"
+                        value={tags}
+                        onChange={(e) => setTags(e.target.value)}
                       />
                     </div>
                   </CardContent>
                   <CardFooter>
                     <Button
                       className="w-full btn-primary"
-                      onClick={handleBookAppointment}
-                      disabled={!selectedDate || !selectedTherapist || !selectedTime || isLoading}
+                      onClick={handleSubmit}
+                      disabled={currentMood === null}
                     >
-                      {isLoading ? (
-                        <>
-                          <span className="animate-spin mr-2">⏳</span>
-                          Processing...
-                        </>
-                      ) : (
-                        "Book Appointment"
-                      )}
+                      Save Mood Entry
                     </Button>
                   </CardFooter>
                 </Card>
+
+                {/* Mood Chart Card */}
+                <Card className="therapy-card col-span-1 md:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="text-xl">Your Mood History</CardTitle>
+                    <CardDescription>See how your mood has changed over time</CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis dataKey="date" />
+                        <YAxis
+                          domain={[1, 5]}
+                          ticks={[1, 2, 3, 4, 5]}
+                          tickFormatter={(value) => MOOD_LABELS[value as number].split(" ")[0]}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgba(255, 255, 255, 0.8)",
+                            borderRadius: "8px",
+                            border: "none",
+                            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                          }}
+                          formatter={(value, name) => [MOOD_LABELS[value as number], "Mood"]}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="mood"
+                          stroke="#9b87f5"
+                          strokeWidth={3}
+                          dot={{ fill: "#9b87f5", r: 6 }}
+                          activeDot={{ r: 8, stroke: "#9b87f5", strokeWidth: 2 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
               </div>
+
+              {/* Insights Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {/* Average Mood Card */}
+                <Card className="therapy-card text-center">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Average Mood</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-4xl font-bold text-therapy-primary">{averageMood}</div>
+                    <p className="text-sm text-gray-500 mt-2">
+                      {Number(averageMood) >= 4
+                        ? "You've been feeling quite positive lately!"
+                        : Number(averageMood) >= 3
+                        ? "Your mood has been stable recently."
+                        : "Your mood has been lower than usual. Consider talking to someone."}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Common Factors Card */}
+                <Card className="therapy-card text-center">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Common Factors</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {topTags.map(tag => (
+                        <span
+                          key={tag}
+                          className="px-3 py-1 bg-therapy-softPurple/30 dark:bg-therapy-dark/30 rounded-full text-sm"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-4">
+                      These are the most common factors in your mood entries
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Mood Distribution Card */}
+                <Card className="therapy-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Mood Distribution</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[160px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={Object.entries(MOOD_LABELS).map(([value, label]) => {
+                          const count = moodHistory.filter(entry => entry.mood === Number(value)).length;
+                          return { value: Number(value), label, count };
+                        })}
+                        margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
+                        barSize={20}
+                      >
+                        <XAxis
+                          dataKey="label"
+                          scale="point"
+                          tickFormatter={(value) => value.split(" ")[0]}
+                        />
+                        <YAxis hide />
+                        <Tooltip
+                          formatter={(value) => [value, "Entries"]}
+                          contentStyle={{
+                            backgroundColor: "rgba(255, 255, 255, 0.8)",
+                            borderRadius: "8px",
+                            border: "none",
+                            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                          }}
+                        />
+                        <Bar
+                          dataKey="count"
+                          fill="#9b87f5"
+                          background={{ fill: "rgba(155, 135, 245, 0.1)" }}
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Recent Entries */}
+              <Card className="therapy-card mb-8">
+                <CardHeader>
+                  <CardTitle className="text-xl">Recent Mood Entries</CardTitle>
+                  <CardDescription>Your latest mood check-ins</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {moodHistory
+                      .sort((a, b) => b.date.getTime() - a.date.getTime())
+                      .slice(0, 5)
+                      .map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="p-4 rounded-lg border border-therapy-softPurple/20 hover:border-therapy-primary/20 transition-colors"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center">
+                              <div
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-white"
+                                style={{ backgroundColor: MOOD_COLORS[entry.mood] }}
+                              >
+                                {entry.mood}
+                              </div>
+                              <div className="ml-3">
+                                <h3 className="font-medium">{MOOD_LABELS[entry.mood]}</h3>
+                                <p className="text-xs text-gray-500">
+                                  {entry.date.toLocaleDateString("en-US", {
+                                    weekday: "long",
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {entry.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="px-2 py-0.5 bg-therapy-softPurple/20 rounded-full text-xs"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {entry.notes && (
+                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                              {entry.notes}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
-            <TabsContent value="upcoming">
-              <Tabs defaultValue="upcoming" className="w-full">
-                <TabsList className="w-full max-w-md mx-auto grid grid-cols-2 mb-6">
-                  <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-                  <TabsTrigger value="past">Past Sessions</TabsTrigger>
-                </TabsList>
+            <TabsContent value="assessment">
+              <Card className="therapy-card max-w-3xl mx-auto">
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <BrainCircuit className="h-6 w-6" />
+                    Mental Health Assessment
+                  </CardTitle>
+                  <CardDescription>
+                    Take a quick assessment to measure your current mental wellbeing
+                  </CardDescription>
+                  {!quizCompleted && (
+                    <div className="mt-2">
+                      <Progress value={quizProgress} className="h-2 w-full" />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Question {currentQuestionIndex + 1} of {moodQuizQuestions.length}
+                      </p>
+                    </div>
+                  )}
+                </CardHeader>
                 
-                <TabsContent value="upcoming">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {upcomingAppointments.length > 0 ? (
-                      upcomingAppointments.map((appointment) => (
-                        <Card key={appointment.id} className="therapy-card">
-                          <CardHeader className="pb-2">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <CardTitle className="text-xl">{appointment.therapist}</CardTitle>
-                                <CardDescription>
-                                  {format(new Date(appointment.date), "PPPP")} at {appointment.time}
-                                </CardDescription>
-                              </div>
-                              <div className="flex-shrink-0">
-                                <div
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                                    appointment.status
-                                  )}`}
-                                >
-                                  {appointment.status}
-                                </div>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-center gap-4 mb-4">
-                              <img
-                                src={getTherapistImage(appointment.therapistId)}
-                                alt={appointment.therapist}
-                                className="w-16 h-16 rounded-full object-cover"
+                <CardContent>
+                  {!quizCompleted ? (
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-medium">
+                          {moodQuizQuestions[currentQuestionIndex].question}
+                        </h3>
+                        <RadioGroup
+                          value={quizAnswers[moodQuizQuestions[currentQuestionIndex].id]?.toString()}
+                          onValueChange={(value) => 
+                            handleQuizAnswer(moodQuizQuestions[currentQuestionIndex].id, parseInt(value))
+                          }
+                          className="space-y-3 mt-4"
+                        >
+                          {moodQuizQuestions[currentQuestionIndex].options.map((option) => (
+                            <div key={option.value} className="flex items-center space-x-2">
+                              <RadioGroupItem 
+                                value={option.value.toString()} 
+                                id={`option-${option.value}`}
+                                className="text-therapy-primary"
                               />
-                              <div>
-                                <p className="text-sm flex items-center gap-1">
-                                  <Clock size={14} />
-                                  {appointment.time}
-                                </p>
-                                <p className="text-sm flex items-center gap-1">
-                                  <CalendarIcon size={14} />
-                                  {format(new Date(appointment.date), "MMMM d, yyyy")}
-                                </p>
-                                <p className="text-sm flex items-center gap-1">
-                                  <User size={14} />
-                                  {appointment.type}
-                                </p>
-                              </div>
+                              <Label htmlFor={`option-${option.value}`} className="cursor-pointer">
+                                {option.label}
+                              </Label>
                             </div>
-                            {appointment.notes && (
-                              <div className="mt-2 p-2 bg-muted rounded-md">
-                                <p className="text-sm flex items-start gap-1">
-                                  <MessageSquare size={14} className="mt-0.5 flex-shrink-0" />
-                                  <span>{appointment.notes}</span>
-                                </p>
-                              </div>
-                            )}
-                          </CardContent>
-                          <CardFooter className="flex gap-2">
-                            <Dialog open={openRescheduleDialog && selectedAppointment?.id === appointment.id} onOpenChange={(open) => {
-                              setOpenRescheduleDialog(open);
-                              if (open) {
-                                setSelectedAppointment(appointment);
-                                setRescheduleDate(new Date(appointment.date));
-                              }
-                            }}>
-                              <DialogTrigger asChild>
-                                <Button variant="outline" className="w-1/2" disabled={appointment.status === "Cancelled"}>
-                                  Reschedule
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Reschedule Appointment</DialogTitle>
-                                  <DialogDescription>
-                                    Choose a new date and time for your appointment with {appointment.therapist}.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4 py-4">
-                                  <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                      New Date
-                                    </label>
-                                    <Calendar
-                                      mode="single"
-                                      selected={rescheduleDate}
-                                      onSelect={setRescheduleDate}
-                                      className="rounded-md border"
-                                      disabled={(date) => {
-                                        const today = new Date();
-                                        today.setHours(0, 0, 0, 0);
-                                        return (
-                                          date < today ||
-                                          date.getDay() === 0 ||
-                                          date.getDay() === 6
-                                        );
-                                      }}
-                                      initialFocus
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                      New Time
-                                    </label>
-                                    <Select onValueChange={setRescheduleTime} value={rescheduleTime}>
-                                      <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select a time" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {getTherapistById(appointment.therapistId)?.availability.map((hour) => (
-                                          <SelectItem key={hour} value={`${hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`}>
-                                            {`${hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                                <DialogFooter>
-                                  <Button variant="outline" onClick={() => setOpenRescheduleDialog(false)}>Cancel</Button>
-                                  <Button onClick={handleRescheduleAppointment} disabled={!rescheduleDate || !rescheduleTime || isLoading}>
-                                    {isLoading ? "Processing..." : "Confirm Reschedule"}
-                                  </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-
-                            <AlertDialog open={openCancelDialog && selectedAppointment?.id === appointment.id} onOpenChange={(open) => {
-                              setOpenCancelDialog(open);
-                              if (open) {
-                                setSelectedAppointment(appointment);
-                              }
-                            }}>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="destructive" className="w-1/2" disabled={appointment.status === "Cancelled"}>
-                                  Cancel
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Cancel Appointment</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to cancel your appointment with {appointment.therapist} on {format(new Date(appointment.date), "MMMM d")} at {appointment.time}?
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>No, keep appointment</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={handleCancelAppointment}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    disabled={isLoading}
-                                  >
-                                    {isLoading ? "Processing..." : "Yes, cancel appointment"}
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </CardFooter>
-                        </Card>
-                      ))
-                    ) : (
-                      <div className="col-span-2 text-center py-10">
-                        <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
-                          <CalendarIcon className="h-8 w-8 text-muted-foreground" />
+                          ))}
+                        </RadioGroup>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-6">
+                      <div className="flex flex-col items-center space-y-2">
+                        <div 
+                          className="w-24 h-24 rounded-full flex items-center justify-center text-white text-4xl font-bold"
+                          style={{ backgroundColor: MOOD_COLORS[quizResult || 3] }}
+                        >
+                          {quizResult}
                         </div>
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
-                          You don't have any upcoming appointments.
+                        <h3 className="text-xl font-semibold mt-4">{quizResult && MOOD_LABELS[quizResult]}</h3>
+                        <p className="text-muted-foreground max-w-md">
+                          {quizResult && quizResult >= 4 
+                            ? "Your mood score indicates you're feeling positive. Great job maintaining your mental wellbeing!"
+                            : quizResult && quizResult === 3
+                              ? "Your mood score is neutral. Consider activities that might boost your mood."
+                              : "Your mood score is lower than average. Consider reaching out to someone you trust or a mental health professional."}
                         </p>
-                        <Button onClick={() => setActiveTab("book")}>
-                          Book Your First Session
+                      </div>
+
+                      <div className="bg-therapy-softPurple/10 p-4 rounded-lg max-w-md mx-auto">
+                        <h4 className="font-medium flex items-center gap-1 mb-2">
+                          <Sparkles className="h-4 w-4" />
+                          Recommendation
+                        </h4>
+                        <p className="text-sm">
+                          {quizResult && quizResult >= 4 
+                            ? "Continue with activities that maintain your positive mood, like exercise, socializing, and mindfulness."
+                            : quizResult && quizResult === 3
+                              ? "Try incorporating more self-care activities into your routine, like walking in nature, journaling, or talking with friends."
+                              : "Consider speaking with a professional. In the meantime, focus on basic self-care like adequate sleep, nutrition, and gentle movement."}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+
+                <CardFooter className="flex justify-between">
+                  {!quizCompleted ? (
+                    <>
+                      {currentQuestionIndex > 0 && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
+                        >
+                          Previous
                         </Button>
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="past">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {pastAppointments.length > 0 ? (
-                      pastAppointments.map((appointment) => (
-                        <Card key={appointment.id} className="therapy-card">
-                          <CardHeader className="pb-2">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <CardTitle className="text-xl">{appointment.therapist}</CardTitle>
-                                <CardDescription>
-                                  {format(new Date(appointment.date), "PPPP")} at {appointment.time}
-                                </CardDescription>
-                              </div>
-                              <div className="flex-shrink-0">
-                                <div
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                                    appointment.status
-                                  )}`}
-                                >
-                                  {appointment.status}
-                                </div>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-center gap-4 mb-4">
-                              <img
-                                src={getTherapistImage(appointment.therapistId)}
-                                alt={appointment.therapist}
-                                className="w-16 h-16 rounded-full object-cover"
-                              />
-                              <div>
-                                <p className="text-sm flex items-center gap-1">
-                                  <Clock size={14} />
-                                  {appointment.time}
-                                </p>
-                                <p className="text-sm flex items-center gap-1">
-                                  <CalendarIcon size={14} />
-                                  {format(new Date(appointment.date), "MMMM d, yyyy")}
-                                </p>
-                                <p className="text-sm flex items-center gap-1">
-                                  <User size={14} />
-                                  {appointment.type}
-                                </p>
-                              </div>
-                            </div>
-                            {appointment.notes && (
-                              <div className="mt-2 p-2 bg-muted rounded-md">
-                                <p className="text-sm flex items-start gap-1">
-                                  <MessageSquare size={14} className="mt-0.5 flex-shrink-0" />
-                                  <span>{appointment.notes}</span>
-                                </p>
-                              </div>
-                            )}
-                          </CardContent>
-                          <CardFooter className="flex gap-2">
-                            {appointment.status === "Completed" ? (
-                              <Button variant="outline" className="w-full">
-                                View Session Notes
-                              </Button>
-                            ) : (
-                              <Button 
-                                variant={appointment.status === "Cancelled" ? "outline" : "default"}
-                                className="w-full"
-                                onClick={() => {
-                                  setSelectedTherapist(appointment.therapist);
-                                  setActiveTab("book");
-                                  toast({
-                                    title: "Book a new appointment",
-                                    description: "Please select a date and time for your new appointment."
-                                  });
-                                }}
-                              >
-                                {appointment.status === "Cancelled" ? "Book New Appointment" : "Book Follow-up"}
-                              </Button>
-                            )}
-                          </CardFooter>
-                        </Card>
-                      ))
-                    ) : (
-                      <div className="col-span-2 text-center py-10">
-                        <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
-                          <CalendarIcon className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
-                          You don't have any past appointments.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
+                      )}
+                      <div className="flex-1" />
+                      <Button
+                        onClick={handleNextQuestion}
+                        disabled={!quizAnswers[moodQuizQuestions[currentQuestionIndex]?.id]}
+                        className="ml-auto"
+                      >
+                        {currentQuestionIndex < moodQuizQuestions.length - 1 ? (
+                          <>
+                            Next
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        ) : (
+                          <>
+                            Complete
+                            <Check className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" onClick={resetQuiz}>
+                        Take Assessment Again
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          if (quizResult) {
+                            setCurrentMood(quizResult);
+                            setActiveTab("tracker");
+                            toast({
+                              title: "Mood transferred",
+                              description: "Your assessment result has been added to the mood tracker."
+                            });
+                          }
+                        }}
+                      >
+                        Add to Mood Tracker
+                      </Button>
+                    </>
+                  )}
+                </CardFooter>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
@@ -802,4 +680,4 @@ const Appointments = () => {
   );
 };
 
-export default Appointments;
+export default MoodTracker;
