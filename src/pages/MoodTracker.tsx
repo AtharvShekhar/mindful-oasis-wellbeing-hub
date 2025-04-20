@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Calendar } from "@/components/ui/calendar"; // Import the Calendar component
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 import { Check, ArrowRight, CalendarIcon, BrainCircuit, Sparkles } from "lucide-react";
 import {
   BarChart,
@@ -28,7 +29,7 @@ import { useAuth } from "@/components/AuthProvider";
 type Mood = {
   id: string;
   date: Date;
-  mood: number; // 1-5 scale
+  mood: number;
   notes: string;
   tags: string[];
 };
@@ -51,14 +52,13 @@ const MOOD_LABELS: Record<number, string> = {
 };
 
 const MOOD_COLORS: Record<number, string> = {
-  1: "#76A9FA", // Blue-ish - calming, not too negative
+  1: "#76A9FA",
   2: "#93C5FD",
-  3: "#C4B5FD", // Purple - neutral
+  3: "#C4B5FD",
   4: "#DDD6FE",
-  5: "#9B87F5", // Purple - positive
+  5: "#9B87F5",
 };
 
-// Mental health assessment questions
 const moodQuizQuestions: QuizQuestion[] = [
   {
     id: 1,
@@ -118,7 +118,6 @@ const moodQuizQuestions: QuizQuestion[] = [
 ];
 
 const MoodTracker = () => {
-  // Demo data
   const [moodHistory, setMoodHistory] = useState<Mood[]>([
     {
       id: "1",
@@ -172,6 +171,7 @@ const MoodTracker = () => {
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [quizResult, setQuizResult] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -184,7 +184,7 @@ const MoodTracker = () => {
 
     const newMood: Mood = {
       id: Date.now().toString(),
-      date: new Date(),
+      date: new Date(selectedDate || Date.now()),
       mood: currentMood,
       notes: notes,
       tags: tags.split(",").map(tag => tag.trim()).filter(Boolean),
@@ -212,13 +212,11 @@ const MoodTracker = () => {
     if (currentQuestionIndex < moodQuizQuestions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
     } else {
-      // Calculate result
       const total = Object.values(quizAnswers).reduce((sum, val) => sum + val, 0);
       const average = Math.round(total / moodQuizQuestions.length);
       setQuizResult(average);
       setQuizCompleted(true);
       
-      // If user completes quiz, suggest adding this to mood tracker
       if (average && !currentMood) {
         setCurrentMood(average);
         setActiveTab("tracker");
@@ -237,12 +235,10 @@ const MoodTracker = () => {
     setQuizResult(null);
   };
 
-  // Calculate average mood
   const averageMood = moodHistory.length > 0
     ? (moodHistory.reduce((sum, entry) => sum + entry.mood, 0) / moodHistory.length).toFixed(1)
     : "N/A";
 
-  // Get most common tags
   const tagCounts: Record<string, number> = {};
   moodHistory.forEach(entry => {
     entry.tags.forEach(tag => {
@@ -255,14 +251,12 @@ const MoodTracker = () => {
     .slice(0, 5)
     .map(([tag]) => tag);
 
-  // Chart data
   const chartData = moodHistory.map(entry => ({
     date: entry.date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     mood: entry.mood,
     name: MOOD_LABELS[entry.mood],
   }));
 
-  // Calculate progress in quiz
   const quizProgress = moodQuizQuestions.length > 0
     ? ((currentQuestionIndex + 1) / moodQuizQuestions.length) * 100
     : 0;
@@ -281,7 +275,7 @@ const MoodTracker = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
             <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
               <TabsTrigger value="tracker" className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
+                <CalendarIcon className="w-4 h-4" />
                 Mood Tracker
               </TabsTrigger>
               <TabsTrigger value="assessment" className="flex items-center gap-2">
@@ -292,7 +286,6 @@ const MoodTracker = () => {
 
             <TabsContent value="tracker">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {/* Today's Mood Card */}
                 <Card className="therapy-card col-span-1">
                   <CardHeader>
                     <CardTitle className="text-xl">How are you feeling today?</CardTitle>
@@ -321,6 +314,30 @@ const MoodTracker = () => {
                       <span>Very Low</span>
                       <span className="ml-auto">Excellent</span>
                     </div>
+                    
+                    <div className="mt-4">
+                      <Label className="block text-sm font-medium mb-2">Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal input-therapy"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, "PPP") : "Select a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-white">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={setSelectedDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    
                     <div className="mt-4">
                       <label className="block text-sm font-medium mb-2">
                         Notes (optional)
@@ -355,7 +372,6 @@ const MoodTracker = () => {
                   </CardFooter>
                 </Card>
 
-                {/* Mood Chart Card */}
                 <Card className="therapy-card col-span-1 md:col-span-2">
                   <CardHeader>
                     <CardTitle className="text-xl">Your Mood History</CardTitle>
@@ -394,9 +410,7 @@ const MoodTracker = () => {
                 </Card>
               </div>
 
-              {/* Insights Row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {/* Average Mood Card */}
                 <Card className="therapy-card text-center">
                   <CardHeader>
                     <CardTitle className="text-lg">Average Mood</CardTitle>
@@ -413,7 +427,6 @@ const MoodTracker = () => {
                   </CardContent>
                 </Card>
 
-                {/* Common Factors Card */}
                 <Card className="therapy-card text-center">
                   <CardHeader>
                     <CardTitle className="text-lg">Common Factors</CardTitle>
@@ -435,7 +448,6 @@ const MoodTracker = () => {
                   </CardContent>
                 </Card>
 
-                {/* Mood Distribution Card */}
                 <Card className="therapy-card">
                   <CardHeader>
                     <CardTitle className="text-lg">Mood Distribution</CardTitle>
@@ -477,7 +489,6 @@ const MoodTracker = () => {
                 </Card>
               </div>
 
-              {/* Recent Entries */}
               <Card className="therapy-card mb-8">
                 <CardHeader>
                   <CardTitle className="text-xl">Recent Mood Entries</CardTitle>

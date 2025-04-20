@@ -1,7 +1,14 @@
 
 import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +16,34 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
-import { User, Settings, Bell, Shield, Key, Calendar, BarChart as BarChartIcon } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  LineChart, 
+  Line 
+} from "recharts";
+import { 
+  User, 
+  Settings, 
+  Bell, 
+  Shield, 
+  Key, 
+  Calendar, 
+  BarChart as BarChartIcon, 
+  FileText, 
+  Pill, 
+  Heart,
+  Activity,
+  Edit
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/components/AuthProvider";
 
 // Mock user data
 const userData = {
@@ -39,12 +72,58 @@ const sessionHistory = [
   { date: "Mar 17, 2023", therapist: "Dr. Sarah Johnson", type: "Video Session", duration: "50 minutes" },
 ];
 
+// Mock health records
+const healthRecords = [
+  { 
+    id: 1, 
+    type: "Medical Report", 
+    date: "May 15, 2023", 
+    provider: "Dr. James Wilson", 
+    description: "Annual physical examination" 
+  },
+  { 
+    id: 2, 
+    type: "Therapy Notes", 
+    date: "April 10, 2023", 
+    provider: "Dr. Sarah Johnson", 
+    description: "Cognitive behavioral therapy session notes" 
+  },
+  { 
+    id: 3, 
+    type: "Prescription", 
+    date: "March 22, 2023", 
+    provider: "Dr. Emily Chen", 
+    description: "Medication prescription and instructions" 
+  },
+];
+
+// Mock medications
+const medications = [
+  { 
+    name: "Sertraline", 
+    dosage: "50mg", 
+    frequency: "Once daily", 
+    purpose: "Anxiety management", 
+    startDate: "Jan 15, 2023" 
+  },
+  { 
+    name: "Vitamin D", 
+    dosage: "2000 IU", 
+    frequency: "Once daily", 
+    purpose: "Vitamin supplementation", 
+    startDate: "Dec 1, 2022" 
+  },
+];
+
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [newsletterEnabled, setNewsletterEnabled] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const [formData, setFormData] = useState({
     name: userData.name,
@@ -52,6 +131,14 @@ const Profile = () => {
     phone: "555-123-4567",
     bio: "I'm working on managing anxiety and stress related to work and family life.",
     goals: "Develop better coping mechanisms for stress and improve work-life balance.",
+    emergency_contact: "Jane Doe (Sister) - 555-987-6543",
+    address: "123 Main Street, Apartment 4B, New York, NY 10001",
+    dob: "1985-06-15",
+    gender: "Non-binary",
+    height: "5'10\"",
+    weight: "165 lbs",
+    blood_type: "O+",
+    allergies: "Penicillin, Shellfish",
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -61,11 +148,24 @@ const Profile = () => {
 
   const handleSaveProfile = () => {
     // In a real app, this would update the user's profile in the database
+    setIsEditing(false);
     toast({
       title: "Profile Updated",
       description: "Your profile information has been saved successfully.",
     });
   };
+
+  // Redirect if user is not logged in
+  useEffect(() => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to view your profile.",
+        variant: "destructive"
+      });
+      navigate("/login");
+    }
+  }, [user, navigate, toast]);
 
   return (
     <Layout>
@@ -83,11 +183,10 @@ const Profile = () => {
               <CardContent className="p-6">
                 <div className="flex flex-col items-center">
                   <div className="w-32 h-32 rounded-full overflow-hidden mb-4 border-4 border-therapy-primary/20">
-                    <img
-                      src={userData.profileImage}
-                      alt={userData.name}
-                      className="w-full h-full object-cover"
-                    />
+                    <Avatar className="w-full h-full">
+                      <AvatarImage src={userData.profileImage} alt={userData.name} />
+                      <AvatarFallback>{userData.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                    </Avatar>
                   </div>
                   <h2 className="text-xl font-bold">{userData.name}</h2>
                   <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{userData.email}</p>
@@ -100,6 +199,14 @@ const Profile = () => {
                       <TabsTrigger value="profile" className="justify-start">
                         <User size={16} className="mr-2" />
                         Profile
+                      </TabsTrigger>
+                      <TabsTrigger value="health" className="justify-start">
+                        <Heart size={16} className="mr-2" />
+                        Health Records
+                      </TabsTrigger>
+                      <TabsTrigger value="medications" className="justify-start">
+                        <Pill size={16} className="mr-2" />
+                        Medications
                       </TabsTrigger>
                       <TabsTrigger value="analytics" className="justify-start">
                         <BarChartIcon size={16} className="mr-2" />
@@ -122,12 +229,22 @@ const Profile = () => {
             <div className="md:col-span-3">
               <TabsContent value="profile" className="mt-0">
                 <Card className="therapy-card">
-                  <CardHeader>
-                    <CardTitle>Personal Information</CardTitle>
-                    <CardDescription>Update your personal details and preferences</CardDescription>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Personal Information</CardTitle>
+                      <CardDescription>Update your personal details and preferences</CardDescription>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setIsEditing(!isEditing)}
+                    >
+                      <Edit size={16} className="mr-2" />
+                      {isEditing ? "Cancel" : "Edit Profile"}
+                    </Button>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Full Name</Label>
                         <Input
@@ -136,6 +253,7 @@ const Profile = () => {
                           value={formData.name}
                           onChange={handleInputChange}
                           className="input-therapy"
+                          readOnly={!isEditing}
                         />
                       </div>
                       <div className="space-y-2">
@@ -147,10 +265,11 @@ const Profile = () => {
                           value={formData.email}
                           onChange={handleInputChange}
                           className="input-therapy"
+                          readOnly={!isEditing}
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="phone">Phone Number</Label>
                         <Input
@@ -159,18 +278,56 @@ const Profile = () => {
                           value={formData.phone}
                           onChange={handleInputChange}
                           className="input-therapy"
+                          readOnly={!isEditing}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="timezone">Timezone</Label>
+                        <Label htmlFor="dob">Date of Birth</Label>
                         <Input
-                          id="timezone"
-                          name="timezone"
-                          value="Eastern Time (ET)"
-                          readOnly
-                          className="input-therapy bg-gray-50"
+                          id="dob"
+                          name="dob"
+                          type="date"
+                          value={formData.dob}
+                          onChange={handleInputChange}
+                          className="input-therapy"
+                          readOnly={!isEditing}
                         />
                       </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="gender">Gender</Label>
+                        <Input
+                          id="gender"
+                          name="gender"
+                          value={formData.gender}
+                          onChange={handleInputChange}
+                          className="input-therapy"
+                          readOnly={!isEditing}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="emergency_contact">Emergency Contact</Label>
+                        <Input
+                          id="emergency_contact"
+                          name="emergency_contact"
+                          value={formData.emergency_contact}
+                          onChange={handleInputChange}
+                          className="input-therapy"
+                          readOnly={!isEditing}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Input
+                        id="address"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleInputChange}
+                        className="input-therapy"
+                        readOnly={!isEditing}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="bio">About Me</Label>
@@ -180,6 +337,7 @@ const Profile = () => {
                         value={formData.bio}
                         onChange={handleInputChange}
                         className="input-therapy min-h-[100px]"
+                        readOnly={!isEditing}
                       />
                     </div>
                     <div className="space-y-2">
@@ -190,12 +348,150 @@ const Profile = () => {
                         value={formData.goals}
                         onChange={handleInputChange}
                         className="input-therapy min-h-[100px]"
+                        readOnly={!isEditing}
                       />
                     </div>
                   </CardContent>
-                  <CardFooter>
-                    <Button onClick={handleSaveProfile} className="btn-primary">Save Changes</Button>
-                  </CardFooter>
+                  {isEditing && (
+                    <CardFooter>
+                      <Button onClick={handleSaveProfile} className="btn-primary">Save Changes</Button>
+                    </CardFooter>
+                  )}
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="health" className="mt-0">
+                <Card className="therapy-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Heart size={20} className="mr-2" />
+                      Health Information
+                    </CardTitle>
+                    <CardDescription>View and manage your health records</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="space-y-2">
+                          <Label>Height</Label>
+                          <Input
+                            value={formData.height}
+                            name="height"
+                            onChange={handleInputChange}
+                            className="input-therapy"
+                            readOnly={!isEditing}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Weight</Label>
+                          <Input
+                            value={formData.weight}
+                            name="weight"
+                            onChange={handleInputChange}
+                            className="input-therapy"
+                            readOnly={!isEditing}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Blood Type</Label>
+                          <Input
+                            value={formData.blood_type}
+                            name="blood_type"
+                            onChange={handleInputChange}
+                            className="input-therapy"
+                            readOnly={!isEditing}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Allergies</Label>
+                          <Input
+                            value={formData.allergies}
+                            name="allergies"
+                            onChange={handleInputChange}
+                            className="input-therapy"
+                            readOnly={!isEditing}
+                          />
+                        </div>
+                      </div>
+
+                      <h3 className="text-lg font-medium mb-3">Health Records</h3>
+                      <div className="space-y-4">
+                        {healthRecords.map((record) => (
+                          <div 
+                            key={record.id}
+                            className="p-4 rounded-lg border border-therapy-softPurple/20 hover:border-therapy-primary/20 transition-colors"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="flex items-center">
+                                  <FileText size={16} className="mr-2 text-therapy-primary" />
+                                  <h4 className="font-medium">{record.type}</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-300">
+                                  {record.date} · {record.provider}
+                                </p>
+                                <p className="text-sm mt-2">{record.description}</p>
+                              </div>
+                              <Button variant="outline" size="sm">
+                                View
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <Button variant="outline" className="w-full">
+                        <FileText size={16} className="mr-2" />
+                        Upload New Health Record
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="medications" className="mt-0">
+                <Card className="therapy-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Pill size={20} className="mr-2" />
+                      Medications
+                    </CardTitle>
+                    <CardDescription>Track your current medications and supplements</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {medications.map((med, index) => (
+                        <div 
+                          key={index}
+                          className="p-4 rounded-lg border border-therapy-softPurple/20 hover:border-therapy-primary/20 transition-colors"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="flex items-center">
+                                <Pill size={16} className="mr-2 text-therapy-primary" />
+                                <h4 className="font-medium">{med.name} - {med.dosage}</h4>
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-300">
+                                {med.frequency} · Since {med.startDate}
+                              </p>
+                              <p className="text-sm mt-2">Purpose: {med.purpose}</p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Button variant="outline" size="sm">Edit</Button>
+                              <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50">
+                                Stop
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      <Button variant="outline" className="w-full">
+                        <Pill size={16} className="mr-2" />
+                        Add New Medication
+                      </Button>
+                    </div>
+                  </CardContent>
                 </Card>
               </TabsContent>
 
@@ -231,30 +527,6 @@ const Profile = () => {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                          <h3 className="text-lg font-medium mb-3">Mood Distribution</h3>
-                          <div className="h-48">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart
-                                data={[
-                                  { name: "Very Low", count: 0 },
-                                  { name: "Low", count: 1 },
-                                  { name: "Neutral", count: 2 },
-                                  { name: "Good", count: 3 },
-                                  { name: "Excellent", count: 1 },
-                                ]}
-                                margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
-                                barSize={30}
-                              >
-                                <XAxis dataKey="name" scale="point" />
-                                <YAxis hide />
-                                <Tooltip />
-                                <Bar dataKey="count" fill="#9b87f5" radius={[4, 4, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-
-                        <div>
                           <h3 className="text-lg font-medium mb-3">Activity Completion</h3>
                           <div className="h-48">
                             <ResponsiveContainer width="100%" height="100%">
@@ -274,6 +546,36 @@ const Profile = () => {
                                 <Tooltip />
                                 <Bar dataKey="completed" fill="#9b87f5" radius={[0, 4, 4, 0]} />
                               </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-lg font-medium mb-3">Health Metrics</h3>
+                          <div className="h-48">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart
+                                data={[
+                                  { date: "Jan", value: 135 },
+                                  { date: "Feb", value: 140 },
+                                  { date: "Mar", value: 145 },
+                                  { date: "Apr", value: 155 },
+                                  { date: "May", value: 150 },
+                                ]}
+                                margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                <XAxis dataKey="date" />
+                                <YAxis />
+                                <Tooltip />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="value" 
+                                  stroke="#ff6b6b" 
+                                  strokeWidth={2}
+                                  name="Blood Pressure"
+                                />
+                              </LineChart>
                             </ResponsiveContainer>
                           </div>
                         </div>
