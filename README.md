@@ -1,73 +1,95 @@
-# Welcome to your Lovable project
 
-## Project info
+# Mindful Oasis: Virtual Therapy Assistant
 
-**URL**: https://lovable.dev/projects/977c4fa0-a16f-4a99-a1af-7ac244f8c5e0
+A complete, full-stack web application for a Virtual Therapy Assistant using React (frontend) with a beautiful UI/UX design that provides mental health support.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- **Beautiful UI/UX Design**: Calming color palette with smooth animations and responsive layout
+- **User Authentication**: Secure signup/login functionality 
+- **AI-Powered Chat**: Smart virtual assistant with sentiment analysis for personalized support
+- **Mood Tracking**: Interactive mood logging with visual analytics and insights
+- **Resource Library**: Curated articles, videos, and exercises for mental wellness
+- **Dark/Light Mode**: Toggle between themes based on user preference
 
-**Use Lovable**
+## Technologies Used
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/977c4fa0-a16f-4a99-a1af-7ac244f8c5e0) and start prompting.
+### Frontend
+- React with TypeScript
+- TailwindCSS + ShadcN UI for styling
+- React Router for navigation
+- React Query for data fetching
+- Recharts for data visualization
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+### Prerequisites
+- Node.js (v14 or higher)
+- npm or yarn package manager
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+1. Clone the repository
+```bash
+git clone https://github.com/your-username/mindful-oasis.git
+cd mindful-oasis
 ```
 
-**Edit a file directly in GitHub**
+2. Install dependencies
+```bash
+npm install
+# or
+yarn install
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+3. Start the development server
+```bash
+npm run dev
+# or
+yarn dev
+```
 
-**Use GitHub Codespaces**
+4. Open your browser and navigate to `http://localhost:8080`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Project Structure
 
-## What technologies are used for this project?
+```
+├── src/
+│   ├── components/         # Reusable UI components
+│   │   ├── layout/         # Layout components (NavBar, Footer, etc.)
+│   │   ├── ui/             # UI components from ShadcN
+│   │   └── ThemeProvider.tsx  # Theme context provider
+│   ├── pages/              # Application pages
+│   │   ├── Index.tsx       # Landing page
+│   │   ├── Login.tsx       # Authentication
+│   │   ├── SignUp.tsx      # User registration
+│   │   ├── Chat.tsx        # AI assistant interface
+│   │   ├── MoodTracker.tsx # Mood tracking and analytics
+│   │   └── Resources.tsx   # Resource library
+│   ├── App.tsx             # Main application component with routes
+│   └── main.tsx            # Application entry point
+```
 
-This project is built with:
+## Future Enhancements
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- Backend integration with Node.js + Express
+- MongoDB database for user data
+- JWT-based authentication
+- Appointment booking system with calendar
+- Advanced analytics dashboard
+- Admin panel for content management
+- Voice-to-text and text-to-speech for accessibility
 
-## How can I deploy this project?
+## Design Approach
 
-Simply open [Lovable](https://lovable.dev/projects/977c4fa0-a16f-4a99-a1af-7ac244f8c5e0) and click on Share -> Publish.
+The application was built with a design-thinking approach focusing on:
 
-## Can I connect a custom domain to my Lovable project?
+- **Empathy for Users**: Understanding the needs of people seeking mental health support
+- **Calming Aesthetics**: Using colors and spacing that create a sense of tranquility
+- **Intuitive Interactions**: Creating simple, predictable user flows
+- **Accessibility**: Ensuring the application is usable by people with different abilities
+- **Responsiveness**: Providing a consistent experience across all device sizes
 
-Yes, you can!
+## License
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+This project is licensed under the MIT License - see the LICENSE file for details.
