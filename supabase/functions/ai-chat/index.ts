@@ -76,34 +76,86 @@ serve(async (req) => {
 
     console.log("Sending request to OpenAI API");
     
-    // Call OpenAI API with improved error handling
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini', // Using the modern model
-        messages,
-        temperature: 0.7,
-        max_tokens: 800,
-        frequency_penalty: 0.5,
-        presence_penalty: 0.5,
-      }),
-    });
+    // Call OpenAI API with improved error handling and retry mechanism
+    let response;
+    let retryCount = 0;
+    const maxRetries = 2;
 
+    while (retryCount <= maxRetries) {
+      try {
+        response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openAIApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini', // Using the modern model
+            messages,
+            temperature: 0.7,
+            max_tokens: 800,
+            frequency_penalty: 0.5,
+            presence_penalty: 0.5,
+          }),
+        });
+
+        if (response.ok) break;
+        
+        // If we get a rate limit error, wait and retry
+        if (response.status === 429) {
+          console.log(`Rate limited, retrying after delay. Attempt ${retryCount + 1} of ${maxRetries}`);
+          await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
+          retryCount++;
+        } else {
+          // For other errors, don't retry
+          break;
+        }
+      } catch (error) {
+        console.error("Network error in OpenAI API call:", error);
+        if (retryCount < maxRetries) {
+          console.log(`Retrying after network error. Attempt ${retryCount + 1} of ${maxRetries}`);
+          await new Promise(r => setTimeout(r, 1000));
+          retryCount++;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    // Handle case when all retries failed or we had a non-retryable error
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error("OpenAI API error:", response.status, errorData);
-      throw new Error(`OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`);
+      
+      // Return a friendly error message to the user
+      return new Response(
+        JSON.stringify({ 
+          response: "I'm having trouble connecting to my knowledge base right now. Could you please try again in a moment?",
+          sentiment: enhancedSentimentAnalysis(message),
+          error: `OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 // Still return 200 to handle the error gracefully in the UI
+        }
+      );
     }
 
     const data = await response.json();
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error("Unexpected response format from OpenAI:", data);
-      throw new Error("Invalid response from OpenAI API");
+      
+      // Return a fallback response instead of an error
+      return new Response(
+        JSON.stringify({ 
+          response: "I received an unexpected response. Let's try a different approach. How else can I help you today?",
+          sentiment: enhancedSentimentAnalysis(message)
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     const aiResponse = data.choices[0].message.content;
@@ -122,13 +174,16 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Error in AI chat function:", error);
+    
+    // Return a user-friendly error message
     return new Response(
       JSON.stringify({ 
+        response: "I apologize, but I encountered an issue while processing your message. Please try again or ask a different question.",
         error: `Error processing request: ${error.message}`,
         errorDetails: error.stack
       }),
       { 
-        status: 500, 
+        status: 200, // Use 200 status even for errors to handle them gracefully in the UI
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
