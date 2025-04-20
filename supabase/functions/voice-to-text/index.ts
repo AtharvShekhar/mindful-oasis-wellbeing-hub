@@ -10,8 +10,8 @@ const corsHeaders = {
 };
 
 // Process base64 in chunks to prevent memory issues
-function processBase64Chunks(base64String, chunkSize = 32768) {
-  const chunks = [];
+function processBase64Chunks(base64String: string, chunkSize = 32768) {
+  const chunks: Uint8Array[] = [];
   let position = 0;
   
   while (position < base64String.length) {
@@ -40,53 +40,68 @@ function processBase64Chunks(base64String, chunkSize = 32768) {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    if (!openAIApiKey) {
+      throw new Error("Missing OpenAI API key. Please set the OPENAI_API_KEY in your Supabase environment variables.");
+    }
+
     const { audio } = await req.json();
     
     if (!audio) {
-      throw new Error('No audio data provided');
+      throw new Error("No audio data provided");
     }
-
-    // Process audio in chunks
-    const binaryAudio = processBase64Chunks(audio);
     
-    // Prepare form data
+    // Process audio data
+    console.log("Processing audio data...");
+    const audioData = processBase64Chunks(audio);
+    const audioBlob = new Blob([audioData], { type: 'audio/webm' });
+    
+    // Create FormData
     const formData = new FormData();
-    const blob = new Blob([binaryAudio], { type: 'audio/webm' });
-    formData.append('file', blob, 'audio.webm');
+    formData.append('file', audioBlob, 'audio.webm');
     formData.append('model', 'whisper-1');
-
-    // Send to OpenAI
+    formData.append('language', 'en');
+    
+    console.log("Sending to OpenAI Whisper API...");
+    
+    // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
+        // Don't set content-type here, it's set automatically with the right boundary
       },
       body: formData,
     });
-
+    
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${await response.text()}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error("OpenAI Whisper API error:", response.status, errorData);
+      throw new Error(`OpenAI Whisper API error: ${response.status} ${errorData.error?.message || response.statusText}`);
     }
-
+    
     const result = await response.json();
-
+    console.log("Transcription result:", result);
+    
     return new Response(
       JSON.stringify({ text: result.text }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
-    console.error('Error in voice-to-text function:', error);
+    console.error("Error in voice-to-text function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      JSON.stringify({ 
+        error: `Error processing request: ${error.message}`,
+        errorDetails: error.stack
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
   }

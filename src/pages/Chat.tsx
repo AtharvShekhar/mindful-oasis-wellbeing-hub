@@ -8,12 +8,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/AuthProvider";
 import { useNavigate } from "react-router-dom";
+import { format } from 'date-fns';
 
 type Message = {
   id: string;
   content: string;
   sender: "user" | "ai";
   timestamp: Date;
+  sentiment?: {
+    score: number;
+    dominant: string;
+    emotions?: Record<string, number>;
+  };
 };
 
 const Chat = () => {
@@ -32,6 +38,7 @@ const Chat = () => {
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const [recordingError, setRecordingError] = useState("");
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -77,16 +84,24 @@ const Chat = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error invoking Edge Function:", error);
+        throw new Error(error.message || "Failed to get a response");
+      }
+
+      if (!data || !data.response) {
+        throw new Error("No response received from AI");
+      }
 
       const aiResponse = data.response;
-      const sentimentScore = data.sentiment;
+      const sentimentData = data.sentiment;
       
       const newMessage: Message = {
         id: Date.now().toString(),
         content: aiResponse,
         sender: "ai",
         timestamp: new Date(),
+        sentiment: sentimentData
       };
       
       setMessages(prev => [...prev, newMessage]);
@@ -112,18 +127,30 @@ const Chat = () => {
         body: { text, voice: 'nova' }, // 'nova' has a pleasant, warm voice
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Text-to-speech error:", error);
+        throw error;
+      }
+
+      if (!data || !data.audioContent) {
+        throw new Error("No audio content received");
+      }
 
       // Play the audio
       const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
       audio.play();
     } catch (error) {
       console.error("Error playing text-to-speech:", error);
+      toast({
+        title: "Speech Error",
+        description: "Could not play the audio response.",
+        variant: "destructive"
+      });
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     
     if (!inputMessage.trim()) return;
     
@@ -143,6 +170,7 @@ const Chat = () => {
 
   const startRecording = async () => {
     try {
+      setRecordingError("");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       setMediaRecorder(recorder);
@@ -166,6 +194,7 @@ const Chat = () => {
       setIsRecording(true);
     } catch (error) {
       console.error("Error starting recording:", error);
+      setRecordingError("Microphone access denied. Please check your browser permissions.");
       toast({
         title: "Recording failed",
         description: "Could not access microphone. Please check permissions.",
@@ -214,10 +243,17 @@ const Chat = () => {
         body: { audio: base64Audio },
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Voice-to-text error:", error);
+        throw error;
+      }
       
-      if (data.text) {
+      if (data?.text) {
         setInputMessage(data.text);
+        // Auto-send the message after a short delay
+        setTimeout(() => {
+          handleSendMessage();
+        }, 500);
       } else {
         toast({
           title: "Transcription empty",
@@ -245,7 +281,29 @@ const Chat = () => {
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return format(date, 'h:mm a');
+  };
+
+  const getSentimentEmoji = (sentiment?: Message['sentiment']) => {
+    if (!sentiment) return "";
+    
+    const score = sentiment.score;
+    const dominant = sentiment.dominant;
+    
+    if (dominant === "joy" || dominant === "gratitude") return "😊";
+    if (dominant === "calm") return "😌";
+    if (dominant === "sadness") return "😔";
+    if (dominant === "anxiety" || dominant === "fear") return "😰";
+    if (dominant === "anger") return "😠";
+    if (dominant === "shame") return "😞";
+    if (dominant === "confusion") return "😕";
+    
+    // Fallback to score-based emoji if dominant emotion isn't recognized
+    if (score > 0.5) return "😊";
+    if (score > 0) return "🙂";
+    if (score === 0) return "😐";
+    if (score > -0.5) return "😕";
+    return "😔";
   };
 
   return (
@@ -259,8 +317,8 @@ const Chat = () => {
               </div>
               <div className="ml-3">
                 <h2 className="font-semibold">Mindful Assistant</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  AI-powered therapeutic support
+                <p className="text-xs text-gray-500">
+                  AI-powered therapeutic chat assistant
                 </p>
               </div>
               <Button
@@ -268,7 +326,7 @@ const Chat = () => {
                 size="icon"
                 className="ml-auto"
                 onClick={toggleSpeech}
-                title={isSpeechEnabled ? "Disable text-to-speech" : "Enable text-to-speech"}
+                title={isSpeechEnabled ? "Disable voice responses" : "Enable voice responses"}
               >
                 {isSpeechEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
               </Button>
@@ -283,7 +341,7 @@ const Chat = () => {
                   className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                    className={`max-w-[85%] rounded-2xl px-4 py-2 ${
                       message.sender === "user"
                         ? "bg-therapy-primary text-white rounded-tr-none"
                         : "bg-therapy-softPurple/30 dark:bg-therapy-dark/50 rounded-tl-none"
@@ -294,19 +352,19 @@ const Chat = () => {
                         {message.sender === "ai" ? (
                           <span className="text-xs font-medium">Mindful Assistant</span>
                         ) : (
-                          <span className="text-xs font-medium">You</span>
+                          <span className="text-xs font-medium">You {message.sentiment && getSentimentEmoji(message.sentiment)}</span>
                         )}
                       </div>
                       <span className="text-xs opacity-70 ml-2">{formatTime(message.timestamp)}</span>
                     </div>
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
                 </div>
               ))}
               
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="max-w-[80%] rounded-2xl px-4 py-2 bg-therapy-softPurple/30 dark:bg-therapy-dark/50 rounded-tl-none">
+                  <div className="max-w-[85%] rounded-2xl px-4 py-2 bg-therapy-softPurple/30 dark:bg-therapy-dark/50 rounded-tl-none">
                     <div className="flex justify-between items-start mb-1">
                       <div className="flex items-center">
                         <span className="text-xs font-medium">Mindful Assistant</span>
@@ -329,22 +387,29 @@ const Chat = () => {
             <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
               <Button
                 type="button"
-                variant="ghost"
+                variant={isRecording ? "destructive" : "ghost"}
                 size="icon"
-                className={`rounded-full ${isRecording ? "text-red-500 bg-red-100 dark:bg-red-900/20 animate-pulse" : ""}`}
+                className={`rounded-full ${isRecording ? "animate-pulse" : ""}`}
                 onClick={toggleRecording}
                 disabled={isLoading}
+                title={isRecording ? "Stop recording" : "Start voice recording"}
               >
                 {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
               </Button>
               
               <Input
                 type="text"
-                placeholder="Type your message..."
+                placeholder={recordingError || "Type your message..."}
                 className="flex-grow input-therapy"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || isRecording}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
               />
               
               <Button
@@ -352,11 +417,15 @@ const Chat = () => {
                 variant="ghost"
                 size="icon"
                 className="rounded-full bg-therapy-primary text-white hover:bg-therapy-secondary"
-                disabled={!inputMessage.trim() || isLoading}
+                disabled={!inputMessage.trim() || isLoading || isRecording}
               >
                 {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
               </Button>
             </form>
+            
+            <div className="mt-2 text-xs text-center text-muted-foreground">
+              <p>Ask any question about mental health, coping strategies, or how you're feeling today</p>
+            </div>
           </div>
         </div>
       </div>

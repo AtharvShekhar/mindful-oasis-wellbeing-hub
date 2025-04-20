@@ -12,17 +12,24 @@ const corsHeaders = {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { text, voice } = await req.json();
+    if (!openAIApiKey) {
+      throw new Error("Missing OpenAI API key. Please set the OPENAI_API_KEY in your Supabase environment variables.");
+    }
+    
+    const { text, voice = 'nova' } = await req.json();
 
     if (!text) {
-      throw new Error('Text is required');
+      throw new Error("No text provided");
     }
 
-    // Generate speech from text
+    // Truncate text if it's too long (OpenAI has limits)
+    const truncatedText = text.length > 4000 ? text.substring(0, 4000) + "..." : text;
+
+    // Call OpenAI API to convert text to speech
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
@@ -30,38 +37,45 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'tts-1',
-        input: text,
-        voice: voice || 'alloy', // Use provided voice or default to 'alloy'
+        model: 'tts-1', // Text-to-speech model
+        input: truncatedText,
+        voice: voice, // 'alloy', 'echo', 'fable', 'nova', 'onyx', or 'shimmer'
         response_format: 'mp3',
       }),
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to generate speech');
+      const errorData = await response.json().catch(() => ({}));
+      console.error("OpenAI TTS API error:", response.status, errorData);
+      throw new Error(`OpenAI TTS API error: ${response.status} ${errorData.error?.message || response.statusText}`);
     }
 
-    // Convert audio buffer to base64
-    const arrayBuffer = await response.arrayBuffer();
+    // Convert the audio to base64
+    const audioArrayBuffer = await response.arrayBuffer();
     const base64Audio = btoa(
-      String.fromCharCode(...new Uint8Array(arrayBuffer))
+      new Uint8Array(audioArrayBuffer)
+        .reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
     return new Response(
-      JSON.stringify({ audioContent: base64Audio }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
+      JSON.stringify({ 
+        audioContent: base64Audio,
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   } catch (error) {
-    console.error('Error in text-to-speech function:', error);
+    console.error("Error in text-to-speech function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
+      JSON.stringify({ 
+        error: `Error processing request: ${error.message}`,
+        errorDetails: error.stack
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });

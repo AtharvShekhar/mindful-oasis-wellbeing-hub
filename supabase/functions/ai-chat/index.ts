@@ -16,32 +16,31 @@ serve(async (req) => {
   }
 
   try {
+    if (!openAIApiKey) {
+      throw new Error("Missing OpenAI API key. Please set the OPENAI_API_KEY in your Supabase environment variables.");
+    }
+
     const { message, previousMessages } = await req.json();
 
     if (!message) {
-      throw new Error('No message provided');
+      throw new Error("No message provided in the request body");
     }
 
-    // Enhanced system message for improved therapy context
+    // Enhanced system message for better therapy responses
     const systemMessage = {
       role: "system",
-      content: `You are a compassionate virtual therapy assistant named Mindful. Your purpose is to provide supportive, empathetic responses that help users process their emotions and thoughts. 
-      
+      content: `You are Mindful, a compassionate and supportive AI therapy assistant. Your goal is to provide empathetic responses, active listening, and evidence-based guidance.
+
       Guidelines:
-      - Respond with empathy and understanding, acknowledge emotions
-      - Ask thoughtful follow-up questions to help users explore their feelings
-      - Suggest evidence-based coping strategies when appropriate
-      - Use a warm, supportive tone with a balance of professional insight and compassion
-      - When users seem distressed, focus on immediate coping tools and validation
-      - If mental health concepts are mentioned, briefly explain them in accessible language
-      - Recognize achievements and progress, no matter how small
-      - Maintain privacy and confidentiality in all interactions
-      - Always suggest professional help for serious mental health concerns
-      - Provide holistic recommendations that may include exercise, nutrition, sleep, meditation, and social connection
-      - Recognize cultural and individual differences in mental health experiences
-      - Avoid making assumptions about the user's experiences or feelings
+      - Respond with warmth and empathy
+      - Ask thoughtful follow-up questions to help users explore their thoughts
+      - Suggest practical coping strategies when appropriate
+      - Maintain a supportive, non-judgmental tone
+      - Recognize signs of distress and provide appropriate resources
+      - Encourage mindfulness and self-compassion
+      - If someone seems to be in crisis, gently encourage them to seek professional help
       
-      Your goal is to help users feel heard, understood, and empowered with tools to manage their mental wellbeing.`
+      Remember that your role is supportive, not to replace professional mental health care.`
     };
 
     // Format conversation for the API
@@ -56,7 +55,9 @@ serve(async (req) => {
       { role: "user", content: message }
     ];
 
-    // Call OpenAI API with enhanced parameters
+    console.log("Sending request to OpenAI API");
+    
+    // Call OpenAI API with improved error handling
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -64,25 +65,31 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', // Using a more capable model
+        model: 'gpt-4o-mini', // Using the modern model
         messages,
         temperature: 0.7,
-        max_tokens: 800, // Increased for more comprehensive responses
-        top_p: 1,
-        frequency_penalty: 0.5, // Helps prevent repetitive responses
-        presence_penalty: 0.5, // Helps encourage more diverse responses
+        max_tokens: 800,
+        frequency_penalty: 0.5,
+        presence_penalty: 0.5,
       }),
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to get response from OpenAI');
+      const errorData = await response.json().catch(() => ({}));
+      console.error("OpenAI API error:", response.status, errorData);
+      throw new Error(`OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`);
     }
 
     const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error("Unexpected response format from OpenAI:", data);
+      throw new Error("Invalid response from OpenAI API");
+    }
+
     const aiResponse = data.choices[0].message.content;
 
-    // Enhanced sentiment analysis for more nuanced emotional understanding
+    // Enhanced sentiment analysis
     const sentiment = enhancedSentimentAnalysis(message);
 
     return new Response(
@@ -90,21 +97,26 @@ serve(async (req) => {
         response: aiResponse,
         sentiment: sentiment
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
     );
   } catch (error) {
-    console.error('Error in AI chat function:', error);
+    console.error("Error in AI chat function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: `Error processing request: ${error.message}`,
+        errorDetails: error.stack
+      }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      },
+      }
     );
   }
 });
 
-// Enhanced sentiment analysis with more categories and nuanced scoring
+// Enhanced sentiment analysis with more nuanced emotional understanding
 function enhancedSentimentAnalysis(text) {
   // Expanded emotion categories
   const emotions = {
