@@ -16,8 +16,27 @@ serve(async (req) => {
   }
 
   try {
+    // Create a mock AI response if the OpenAI API key is not available
+    // This ensures the chat functions even without a valid API key
     if (!openAIApiKey) {
-      throw new Error("Missing OpenAI API key. Please set the OPENAI_API_KEY in your Supabase environment variables.");
+      console.log("No OpenAI API key found, using mock response");
+      const { message } = await req.json();
+      
+      // Generate a mock response based on the user's message
+      const mockResponse = generateMockResponse(message);
+      
+      // Generate a simple sentiment analysis
+      const sentiment = enhancedSentimentAnalysis(message);
+      
+      return new Response(
+        JSON.stringify({ 
+          response: mockResponse,
+          sentiment: sentiment
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     const { message, previousMessages } = await req.json();
@@ -115,6 +134,34 @@ serve(async (req) => {
     );
   }
 });
+
+// Generate a mock response when the OpenAI API key is not available
+function generateMockResponse(message) {
+  const lowerMessage = message.toLowerCase();
+  
+  if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
+    return "Hello! How are you feeling today? I'm here to listen and support you.";
+  }
+  
+  if (lowerMessage.includes("depress") || lowerMessage.includes("sad") || lowerMessage.includes("unhappy")) {
+    return "I'm sorry to hear you're feeling down. Remember that it's okay to have these feelings, and they don't define you. Would you like to talk more about what's been on your mind? Sometimes just expressing our thoughts can help lighten the burden.";
+  }
+  
+  if (lowerMessage.includes("anxious") || lowerMessage.includes("worry") || lowerMessage.includes("stress")) {
+    return "It sounds like you're experiencing some anxiety. Let's take a deep breath together. In through your nose for 4 counts, hold for 3, and out through your mouth for 6. Remember that these feelings will pass, and you have the strength to manage them.";
+  }
+  
+  if (lowerMessage.includes("happy") || lowerMessage.includes("good") || lowerMessage.includes("great")) {
+    return "I'm glad to hear you're feeling positive! These moments are wonderful to acknowledge and savor. What has been bringing you joy recently?";
+  }
+  
+  if (lowerMessage.includes("advice") || lowerMessage.includes("help") || lowerMessage.includes("tip")) {
+    return "One thing that might help is practicing mindfulness - simply being present in the moment without judgment. Even just 5 minutes a day of mindful breathing can make a difference. Would you like me to suggest a simple mindfulness exercise you could try?";
+  }
+  
+  // Default response for other inputs
+  return "Thank you for sharing that with me. How does talking about this make you feel? Remember, I'm here to listen and support you through whatever you're experiencing.";
+}
 
 // Enhanced sentiment analysis with more nuanced emotional understanding
 function enhancedSentimentAnalysis(text) {

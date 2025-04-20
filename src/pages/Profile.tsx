@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { 
@@ -44,16 +43,8 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/components/AuthProvider";
+import { supabase } from "@/integrations/supabase/client";
 
-// Mock user data
-const userData = {
-  name: "Alex Johnson",
-  email: "alex.johnson@example.com",
-  joinDate: "March 15, 2023",
-  profileImage: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1770&q=80",
-};
-
-// Mock mood data
 const moodData = [
   { date: "Apr 1", mood: 3, label: "Neutral" },
   { date: "Apr 5", mood: 2, label: "Low" },
@@ -64,7 +55,6 @@ const moodData = [
   { date: "Apr 30", mood: 4, label: "Good" },
 ];
 
-// Mock session history
 const sessionHistory = [
   { date: "Apr 28, 2023", therapist: "Dr. Sarah Johnson", type: "Video Session", duration: "50 minutes" },
   { date: "Apr 14, 2023", therapist: "Dr. Sarah Johnson", type: "Video Session", duration: "50 minutes" },
@@ -72,7 +62,6 @@ const sessionHistory = [
   { date: "Mar 17, 2023", therapist: "Dr. Sarah Johnson", type: "Video Session", duration: "50 minutes" },
 ];
 
-// Mock health records
 const healthRecords = [
   { 
     id: 1, 
@@ -97,7 +86,6 @@ const healthRecords = [
   },
 ];
 
-// Mock medications
 const medications = [
   { 
     name: "Sertraline", 
@@ -124,10 +112,17 @@ const Profile = () => {
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [newsletterEnabled, setNewsletterEnabled] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: "Loading...",
+    email: user?.email || "Loading...",
+    joinDate: "Loading...",
+    profileImage: "",
+  });
+  const [loading, setLoading] = useState(true);
 
   const [formData, setFormData] = useState({
-    name: userData.name,
-    email: userData.email,
+    name: "",
+    email: "",
     phone: "555-123-4567",
     bio: "I'm working on managing anxiety and stress related to work and family life.",
     goals: "Develop better coping mechanisms for stress and improve work-life balance.",
@@ -141,21 +136,6 @@ const Profile = () => {
     allergies: "Penicillin, Shellfish",
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSaveProfile = () => {
-    // In a real app, this would update the user's profile in the database
-    setIsEditing(false);
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been saved successfully.",
-    });
-  };
-
-  // Redirect if user is not logged in
   useEffect(() => {
     if (!user) {
       toast({
@@ -164,8 +144,105 @@ const Profile = () => {
         variant: "destructive"
       });
       navigate("/login");
+      return;
     }
+
+    const fetchProfileData = async () => {
+      try {
+        setLoading(true);
+        
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (error) {
+          console.error("Error fetching profile:", error);
+          throw error;
+        }
+        
+        const joinDate = new Date(user.createdAt || Date.now());
+        const formattedJoinDate = joinDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        
+        const userName = 
+          user.user_metadata?.full_name || 
+          profileData?.full_name || 
+          "User";
+        
+        setProfileData({
+          name: userName,
+          email: user.email || "No email provided",
+          joinDate: formattedJoinDate,
+          profileImage: profileData?.avatar_url || "",
+        });
+        
+        setFormData(prev => ({
+          ...prev,
+          name: userName,
+          email: user.email || "",
+        }));
+        
+      } catch (err) {
+        console.error("Error loading profile:", err);
+        toast({
+          title: "Could not load profile",
+          description: "Please try again later",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
   }, [user, navigate, toast]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setLoading(true);
+      
+      if (user) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            full_name: formData.name,
+          })
+          .eq('id', user.id);
+        
+        if (error) throw error;
+      }
+      
+      setProfileData(prev => ({
+        ...prev,
+        name: formData.name
+      }));
+      
+      setIsEditing(false);
+      toast({
+        title: "Profile Updated",
+        description: "Your profile information has been saved successfully.",
+      });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast({
+        title: "Update Failed",
+        description: "There was an error updating your profile.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Layout>
@@ -184,13 +261,13 @@ const Profile = () => {
                 <div className="flex flex-col items-center">
                   <div className="w-32 h-32 rounded-full overflow-hidden mb-4 border-4 border-therapy-primary/20">
                     <Avatar className="w-full h-full">
-                      <AvatarImage src={userData.profileImage} alt={userData.name} />
-                      <AvatarFallback>{userData.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                      <AvatarImage src={profileData.profileImage} alt={profileData.name} />
+                      <AvatarFallback>{profileData.name.split(' ').map(n => n?.[0] || '').join('')}</AvatarFallback>
                     </Avatar>
                   </div>
-                  <h2 className="text-xl font-bold">{userData.name}</h2>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{userData.email}</p>
-                  <p className="text-gray-500 text-xs">Member since {userData.joinDate}</p>
+                  <h2 className="text-xl font-bold">{profileData.name}</h2>
+                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{profileData.email}</p>
+                  <p className="text-gray-500 text-xs">Member since {profileData.joinDate}</p>
                 </div>
 
                 <div className="mt-6">
@@ -238,123 +315,144 @@ const Profile = () => {
                       variant="outline" 
                       size="sm" 
                       onClick={() => setIsEditing(!isEditing)}
+                      disabled={loading}
                     >
                       <Edit size={16} className="mr-2" />
                       {isEditing ? "Cancel" : "Edit Profile"}
                     </Button>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Full Name</Label>
-                        <Input
-                          id="name"
-                          name="name"
-                          value={formData.name}
-                          onChange={handleInputChange}
-                          className="input-therapy"
-                          readOnly={!isEditing}
-                        />
+                    {loading ? (
+                      <div className="py-8 text-center">
+                        <div className="animate-spin w-8 h-8 border-4 border-therapy-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <p>Loading profile information...</p>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          name="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={handleInputChange}
-                          className="input-therapy"
-                          readOnly={!isEditing}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Phone Number</Label>
-                        <Input
-                          id="phone"
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleInputChange}
-                          className="input-therapy"
-                          readOnly={!isEditing}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="dob">Date of Birth</Label>
-                        <Input
-                          id="dob"
-                          name="dob"
-                          type="date"
-                          value={formData.dob}
-                          onChange={handleInputChange}
-                          className="input-therapy"
-                          readOnly={!isEditing}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="gender">Gender</Label>
-                        <Input
-                          id="gender"
-                          name="gender"
-                          value={formData.gender}
-                          onChange={handleInputChange}
-                          className="input-therapy"
-                          readOnly={!isEditing}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="emergency_contact">Emergency Contact</Label>
-                        <Input
-                          id="emergency_contact"
-                          name="emergency_contact"
-                          value={formData.emergency_contact}
-                          onChange={handleInputChange}
-                          className="input-therapy"
-                          readOnly={!isEditing}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="address">Address</Label>
-                      <Input
-                        id="address"
-                        name="address"
-                        value={formData.address}
-                        onChange={handleInputChange}
-                        className="input-therapy"
-                        readOnly={!isEditing}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bio">About Me</Label>
-                      <Textarea
-                        id="bio"
-                        name="bio"
-                        value={formData.bio}
-                        onChange={handleInputChange}
-                        className="input-therapy min-h-[100px]"
-                        readOnly={!isEditing}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="goals">My Wellness Goals</Label>
-                      <Textarea
-                        id="goals"
-                        name="goals"
-                        value={formData.goals}
-                        onChange={handleInputChange}
-                        className="input-therapy min-h-[100px]"
-                        readOnly={!isEditing}
-                      />
-                    </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="name">Full Name</Label>
+                            <Input
+                              id="name"
+                              name="name"
+                              value={formData.name}
+                              onChange={handleInputChange}
+                              className="input-therapy"
+                              readOnly={!isEditing}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input
+                              id="email"
+                              name="email"
+                              type="email"
+                              value={formData.email}
+                              onChange={handleInputChange}
+                              className="input-therapy"
+                              readOnly={!isEditing || true}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="phone">Phone Number</Label>
+                            <Input
+                              id="phone"
+                              name="phone"
+                              value={formData.phone}
+                              onChange={handleInputChange}
+                              className="input-therapy"
+                              readOnly={!isEditing}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dob">Date of Birth</Label>
+                            <Input
+                              id="dob"
+                              name="dob"
+                              type="date"
+                              value={formData.dob}
+                              onChange={handleInputChange}
+                              className="input-therapy"
+                              readOnly={!isEditing}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="gender">Gender</Label>
+                            <Input
+                              id="gender"
+                              name="gender"
+                              value={formData.gender}
+                              onChange={handleInputChange}
+                              className="input-therapy"
+                              readOnly={!isEditing}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="emergency_contact">Emergency Contact</Label>
+                            <Input
+                              id="emergency_contact"
+                              name="emergency_contact"
+                              value={formData.emergency_contact}
+                              onChange={handleInputChange}
+                              className="input-therapy"
+                              readOnly={!isEditing}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="address">Address</Label>
+                          <Input
+                            id="address"
+                            name="address"
+                            value={formData.address}
+                            onChange={handleInputChange}
+                            className="input-therapy"
+                            readOnly={!isEditing}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="bio">About Me</Label>
+                          <Textarea
+                            id="bio"
+                            name="bio"
+                            value={formData.bio}
+                            onChange={handleInputChange}
+                            className="input-therapy min-h-[100px]"
+                            readOnly={!isEditing}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="goals">My Wellness Goals</Label>
+                          <Textarea
+                            id="goals"
+                            name="goals"
+                            value={formData.goals}
+                            onChange={handleInputChange}
+                            className="input-therapy min-h-[100px]"
+                            readOnly={!isEditing}
+                          />
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                   {isEditing && (
                     <CardFooter>
-                      <Button onClick={handleSaveProfile} className="btn-primary">Save Changes</Button>
+                      <Button 
+                        onClick={handleSaveProfile} 
+                        className="btn-primary"
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <>
+                            <span className="animate-spin mr-2">⟳</span>
+                            Saving...
+                          </>
+                        ) : 'Save Changes'}
+                      </Button>
                     </CardFooter>
                   )}
                 </Card>

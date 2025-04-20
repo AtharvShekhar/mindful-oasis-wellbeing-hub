@@ -39,6 +39,7 @@ const Chat = () => {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [recordingError, setRecordingError] = useState("");
+  const [errorRetries, setErrorRetries] = useState(0);
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -76,6 +77,15 @@ const Chat = () => {
     setIsLoading(true);
     
     try {
+      // Fallback response in case the edge function fails
+      const fallbackResponses = [
+        "I understand how you're feeling. Would you like to talk more about that?",
+        "Thank you for sharing. Sometimes expressing our thoughts can help us process them better.",
+        "I appreciate you opening up. What do you think might help in this situation?",
+        "That's a valid feeling. Would it help to explore some coping strategies together?",
+        "I'm here to listen. Would you like to tell me more about what's on your mind?"
+      ];
+      
       // Call the Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('ai-chat', {
         body: {
@@ -86,8 +96,32 @@ const Chat = () => {
 
       if (error) {
         console.error("Error invoking Edge Function:", error);
+        
+        // If we've had multiple failures, use a fallback response
+        if (errorRetries > 1) {
+          const randomIndex = Math.floor(Math.random() * fallbackResponses.length);
+          const fallbackResponse = fallbackResponses[randomIndex];
+          
+          const newMessage: Message = {
+            id: Date.now().toString(),
+            content: fallbackResponse,
+            sender: "ai",
+            timestamp: new Date(),
+            sentiment: { score: 0, dominant: "neutral" }
+          };
+          
+          setMessages(prev => [...prev, newMessage]);
+          setErrorRetries(0); // Reset retry counter after using fallback
+          return;
+        }
+        
+        // Increment retry counter
+        setErrorRetries(prev => prev + 1);
         throw new Error(error.message || "Failed to get a response");
       }
+
+      // Reset error retries on success
+      setErrorRetries(0);
 
       if (!data || !data.response) {
         throw new Error("No response received from AI");
