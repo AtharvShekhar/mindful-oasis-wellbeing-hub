@@ -1,37 +1,30 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/components/AuthProvider";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const { signIn, loading } = useAuth();
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError("");
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // This would be replaced with actual authentication logic
-      console.log("Login attempt with:", { email, password, rememberMe });
-      
-      // Redirect to dashboard (would use actual navigation in real implementation)
-      window.location.href = "/dashboard";
-    } catch (err) {
-      setError("Invalid email or password. Please try again.");
-    } finally {
-      setIsLoading(false);
+      await signIn(email, password);
+      navigate("/chat");
+    } catch (err: any) {
+      setError(err.message || "Invalid email or password. Please try again.");
     }
   };
 
@@ -113,9 +106,9 @@ const Login = () => {
               <Button 
                 type="submit" 
                 className="w-full btn-primary h-12"
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? "Signing in..." : "Sign in"}
+                {loading ? "Signing in..." : "Sign in"}
               </Button>
             </div>
             

@@ -3,7 +3,11 @@ import { useState, useRef, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mic, MicOff, User, Send, Volume2, VolumeX } from "lucide-react";
+import { Mic, MicOff, Send, Volume2, VolumeX, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/AuthProvider";
+import { useNavigate } from "react-router-dom";
 
 type Message = {
   id: string;
@@ -25,68 +29,97 @@ const Chat = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeechEnabled, setIsSpeechEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect if user is not logged in
+  useEffect(() => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to access the chat.",
+        variant: "destructive"
+      });
+      navigate("/login");
+    }
+  }, [user, navigate, toast]);
 
   // Scroll to bottom of chat whenever messages change
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Setup audio context for recording
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setAudioContext(new (window.AudioContext || (window as any).webkitAudioContext)());
+    }
+    return () => {
+      audioContext?.close();
+    };
+  }, []);
+
   const generateResponse = async (userMessage: string) => {
     setIsLoading(true);
     
-    // Simulate AI response delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const sentimentScore = analyzeSentiment(userMessage);
-    let response = "";
-    
-    if (sentimentScore < -0.5) {
-      // Negative sentiment
-      response = "I notice you seem to be feeling down. Would you like to talk about what's troubling you? Remember, acknowledging difficult emotions is an important first step.";
-    } else if (sentimentScore > 0.5) {
-      // Positive sentiment
-      response = "It's wonderful to hear you're feeling positive! What specifically has been bringing you joy today?";
-    } else {
-      // Neutral or mixed sentiment
-      response = "Thank you for sharing. Would you like to explore these feelings further, or perhaps try a mindfulness exercise to help center yourself?";
-    }
-    
-    setMessages(prev => [
-      ...prev,
-      {
+    try {
+      // Call the Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('ai-chat', {
+        body: {
+          message: userMessage,
+          previousMessages: messages.slice(-5), // Send last 5 messages for context
+        },
+      });
+
+      if (error) throw error;
+
+      const aiResponse = data.response;
+      const sentimentScore = data.sentiment;
+      
+      const newMessage: Message = {
         id: Date.now().toString(),
-        content: response,
+        content: aiResponse,
         sender: "ai",
         timestamp: new Date(),
-      },
-    ]);
-    
-    if (isSpeechEnabled) {
-      // In a real implementation, this would use the Web Speech API or a TTS service
-      console.log("Text-to-speech would read:", response);
+      };
+      
+      setMessages(prev => [...prev, newMessage]);
+      
+      if (isSpeechEnabled) {
+        playTextToSpeech(aiResponse);
+      }
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      toast({
+        title: "Error",
+        description: "Failed to get a response. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
-  // Simple mock sentiment analysis (would use a real API in production)
-  const analyzeSentiment = (text: string): number => {
-    const positiveWords = ["happy", "joy", "good", "great", "excellent", "wonderful", "better", "positive", "calm", "relaxed"];
-    const negativeWords = ["sad", "depressed", "anxious", "worried", "bad", "terrible", "worse", "negative", "stress", "angry"];
-    
-    let score = 0;
-    const lowerText = text.toLowerCase();
-    
-    positiveWords.forEach(word => {
-      if (lowerText.includes(word)) score += 0.2;
-    });
-    
-    negativeWords.forEach(word => {
-      if (lowerText.includes(word)) score -= 0.2;
-    });
-    
-    return Math.max(-1, Math.min(1, score)); // Clamp between -1 and 1
+  const playTextToSpeech = async (text: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('text-to-speech', {
+        body: { text, voice: 'nova' }, // 'nova' has a pleasant, warm voice
+      });
+
+      if (error) throw error;
+
+      // Play the audio
+      const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
+      audio.play();
+    } catch (error) {
+      console.error("Error playing text-to-speech:", error);
+    }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -102,29 +135,113 @@ const Chat = () => {
     };
     
     setMessages(prev => [...prev, newMessage]);
+    const messageToSend = inputMessage;
     setInputMessage("");
     
-    await generateResponse(inputMessage);
+    await generateResponse(messageToSend);
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      setMediaRecorder(recorder);
+      setAudioChunks([]);
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          setAudioChunks(prev => [...prev, e.data]);
+        }
+      };
+      
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        await processAudio(audioBlob);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      recorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      toast({
+        title: "Recording failed",
+        description: "Could not access microphone. Please check permissions.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
   };
 
   const toggleRecording = () => {
-    // This would be implemented with the Web Speech API in a real application
-    setIsRecording(!isRecording);
-    
-    if (!isRecording) {
-      console.log("Would start speech recognition here");
-      // Simulate receiving speech after 3 seconds
-      setTimeout(() => {
-        setInputMessage("I've been feeling a bit anxious about my upcoming presentation.");
-        setIsRecording(false);
-      }, 3000);
+    if (isRecording) {
+      stopRecording();
     } else {
-      console.log("Would stop speech recognition here");
+      startRecording();
+    }
+  };
+
+  const processAudio = async (audioBlob: Blob) => {
+    setIsLoading(true);
+    
+    try {
+      // Convert blob to base64
+      const reader = new FileReader();
+      
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            // Extract the base64 data
+            const base64Data = reader.result.split(',')[1];
+            resolve(base64Data);
+          }
+        };
+      });
+      
+      reader.readAsDataURL(audioBlob);
+      const base64Audio = await base64Promise;
+      
+      // Call the voice-to-text edge function
+      const { data, error } = await supabase.functions.invoke('voice-to-text', {
+        body: { audio: base64Audio },
+      });
+      
+      if (error) throw error;
+      
+      if (data.text) {
+        setInputMessage(data.text);
+      } else {
+        toast({
+          title: "Transcription empty",
+          description: "Could not detect any speech. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error("Error processing audio:", error);
+      toast({
+        title: "Processing failed",
+        description: "Could not convert speech to text. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const toggleSpeech = () => {
     setIsSpeechEnabled(!isSpeechEnabled);
+    toast({
+      title: isSpeechEnabled ? "Voice disabled" : "Voice enabled",
+      description: isSpeechEnabled ? "Text-to-speech is now off." : "Text-to-speech is now on.",
+    });
   };
 
   const formatTime = (date: Date) => {
@@ -216,6 +333,7 @@ const Chat = () => {
                 size="icon"
                 className={`rounded-full ${isRecording ? "text-red-500 bg-red-100 dark:bg-red-900/20 animate-pulse" : ""}`}
                 onClick={toggleRecording}
+                disabled={isLoading}
               >
                 {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
               </Button>
@@ -236,7 +354,7 @@ const Chat = () => {
                 className="rounded-full bg-therapy-primary text-white hover:bg-therapy-secondary"
                 disabled={!inputMessage.trim() || isLoading}
               >
-                <Send size={18} />
+                {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
               </Button>
             </form>
           </div>

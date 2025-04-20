@@ -1,11 +1,12 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/components/AuthProvider";
 
 const SignUp = () => {
   const [formData, setFormData] = useState({
@@ -15,8 +16,9 @@ const SignUp = () => {
     confirmPassword: "",
   });
   const [agreeTerms, setAgreeTerms] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const { signUp, loading } = useAuth();
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -28,35 +30,24 @@ const SignUp = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError("");
 
     // Basic validation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
-      setIsLoading(false);
       return;
     }
 
     if (!agreeTerms) {
       setError("You must agree to the terms and conditions");
-      setIsLoading(false);
       return;
     }
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // This would be replaced with actual registration logic
-      console.log("Registration attempt with:", formData);
-      
-      // Redirect to dashboard (would use actual navigation in real implementation)
-      window.location.href = "/dashboard";
-    } catch (err) {
-      setError("An error occurred during registration. Please try again.");
-    } finally {
-      setIsLoading(false);
+      await signUp(formData.email, formData.password, formData.name);
+      navigate("/login");
+    } catch (err: any) {
+      setError(err.message || "An error occurred during registration. Please try again.");
     }
   };
 
@@ -171,9 +162,9 @@ const SignUp = () => {
               <Button 
                 type="submit" 
                 className="w-full btn-primary h-12"
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? "Creating account..." : "Create account"}
+                {loading ? "Creating account..." : "Create account"}
               </Button>
             </div>
             
