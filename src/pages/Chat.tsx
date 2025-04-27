@@ -1,26 +1,13 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Send, Volume2, VolumeX, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/AuthProvider";
 import { useNavigate } from "react-router-dom";
-import { format } from 'date-fns';
-
-type Message = {
-  id: string;
-  content: string;
-  sender: "user" | "ai";
-  timestamp: Date;
-  sentiment?: {
-    score: number;
-    dominant: string;
-    emotions?: Record<string, number>;
-  };
-};
+import { supabase } from "@/integrations/supabase/client";
+import { Message } from "@/types/chat";
+import { ChatMessage } from "@/components/chat/ChatMessage";
+import { ChatInput } from "@/components/chat/ChatInput";
+import { ChatHeader } from "@/components/chat/ChatHeader";
 
 const Chat = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -46,7 +33,6 @@ const Chat = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if user is not logged in
   useEffect(() => {
     if (!user) {
       toast({
@@ -58,12 +44,10 @@ const Chat = () => {
     }
   }, [user, navigate, toast]);
 
-  // Scroll to bottom of chat whenever messages change
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Setup audio context for recording
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setAudioContext(new (window.AudioContext || (window as any).webkitAudioContext)());
@@ -77,7 +61,6 @@ const Chat = () => {
     setIsLoading(true);
     
     try {
-      // Fallback response in case the edge function fails
       const fallbackResponses = [
         "I understand how you're feeling. Would you like to talk more about that?",
         "Thank you for sharing. Sometimes expressing our thoughts can help us process them better.",
@@ -86,18 +69,16 @@ const Chat = () => {
         "I'm here to listen. Would you like to tell me more about what's on your mind?"
       ];
       
-      // Call the Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('ai-chat', {
         body: {
           message: userMessage,
-          previousMessages: messages.slice(-5), // Send last 5 messages for context
+          previousMessages: messages.slice(-5),
         },
       });
 
       if (error) {
         console.error("Error invoking Edge Function:", error);
         
-        // If we've had multiple failures, use a fallback response
         if (errorRetries > 1) {
           const randomIndex = Math.floor(Math.random() * fallbackResponses.length);
           const fallbackResponse = fallbackResponses[randomIndex];
@@ -111,16 +92,14 @@ const Chat = () => {
           };
           
           setMessages(prev => [...prev, newMessage]);
-          setErrorRetries(0); // Reset retry counter after using fallback
+          setErrorRetries(0);
           return;
         }
         
-        // Increment retry counter
         setErrorRetries(prev => prev + 1);
         throw new Error(error.message || "Failed to get a response");
       }
 
-      // Reset error retries on success
       setErrorRetries(0);
 
       if (!data || !data.response) {
@@ -158,7 +137,7 @@ const Chat = () => {
   const playTextToSpeech = async (text: string) => {
     try {
       const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: { text, voice: 'nova' }, // 'nova' has a pleasant, warm voice
+        body: { text, voice: 'nova' },
       });
 
       if (error) {
@@ -170,7 +149,6 @@ const Chat = () => {
         throw new Error("No audio content received");
       }
 
-      // Play the audio
       const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
       audio.play();
     } catch (error) {
@@ -220,7 +198,6 @@ const Chat = () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         await processAudio(audioBlob);
         
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
       };
       
@@ -256,13 +233,11 @@ const Chat = () => {
     setIsLoading(true);
     
     try {
-      // Convert blob to base64
       const reader = new FileReader();
       
       const base64Promise = new Promise<string>((resolve) => {
         reader.onloadend = () => {
           if (typeof reader.result === 'string') {
-            // Extract the base64 data
             const base64Data = reader.result.split(',')[1];
             resolve(base64Data);
           }
@@ -272,7 +247,6 @@ const Chat = () => {
       reader.readAsDataURL(audioBlob);
       const base64Audio = await base64Promise;
       
-      // Call the voice-to-text edge function
       const { data, error } = await supabase.functions.invoke('voice-to-text', {
         body: { audio: base64Audio },
       });
@@ -284,7 +258,6 @@ const Chat = () => {
       
       if (data?.text) {
         setInputMessage(data.text);
-        // Auto-send the message after a short delay
         setTimeout(() => {
           handleSendMessage();
         }, 500);
@@ -314,86 +287,16 @@ const Chat = () => {
     });
   };
 
-  const formatTime = (date: Date) => {
-    return format(date, 'h:mm a');
-  };
-
-  const getSentimentEmoji = (sentiment?: Message['sentiment']) => {
-    if (!sentiment) return "";
-    
-    const score = sentiment.score;
-    const dominant = sentiment.dominant;
-    
-    if (dominant === "joy" || dominant === "gratitude") return "😊";
-    if (dominant === "calm") return "😌";
-    if (dominant === "sadness") return "😔";
-    if (dominant === "anxiety" || dominant === "fear") return "😰";
-    if (dominant === "anger") return "😠";
-    if (dominant === "shame") return "😞";
-    if (dominant === "confusion") return "😕";
-    
-    // Fallback to score-based emoji if dominant emotion isn't recognized
-    if (score > 0.5) return "😊";
-    if (score > 0) return "🙂";
-    if (score === 0) return "😐";
-    if (score > -0.5) return "😕";
-    return "😔";
-  };
-
   return (
     <Layout>
       <div className="min-h-[calc(100vh-64px)] bg-therapy-softPurple/10 dark:bg-therapy-dark/20 flex flex-col">
         <div className="w-full max-w-4xl mx-auto flex-grow flex flex-col px-4 py-6">
-          <div className="bg-white dark:bg-black/20 rounded-t-2xl shadow-sm p-4 border-b border-therapy-softPurple/20">
-            <div className="flex items-center">
-              <div className="w-10 h-10 rounded-full bg-therapy-primary flex items-center justify-center text-white">
-                AI
-              </div>
-              <div className="ml-3">
-                <h2 className="font-semibold">Mindful Assistant</h2>
-                <p className="text-xs text-gray-500">
-                  AI-powered therapeutic chat assistant
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="ml-auto"
-                onClick={toggleSpeech}
-                title={isSpeechEnabled ? "Disable voice responses" : "Enable voice responses"}
-              >
-                {isSpeechEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
-              </Button>
-            </div>
-          </div>
+          <ChatHeader isSpeechEnabled={isSpeechEnabled} toggleSpeech={toggleSpeech} />
           
           <div className="flex-grow bg-white dark:bg-black/20 p-4 overflow-y-auto">
             <div className="space-y-4">
               {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2 ${
-                      message.sender === "user"
-                        ? "bg-therapy-primary text-white rounded-tr-none"
-                        : "bg-therapy-softPurple/30 dark:bg-therapy-dark/50 rounded-tl-none"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex items-center">
-                        {message.sender === "ai" ? (
-                          <span className="text-xs font-medium">Mindful Assistant</span>
-                        ) : (
-                          <span className="text-xs font-medium">You {message.sentiment && getSentimentEmoji(message.sentiment)}</span>
-                        )}
-                      </div>
-                      <span className="text-xs opacity-70 ml-2">{formatTime(message.timestamp)}</span>
-                    </div>
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  </div>
-                </div>
+                <ChatMessage key={message.id} message={message} />
               ))}
               
               {isLoading && (
@@ -417,50 +320,15 @@ const Chat = () => {
             </div>
           </div>
           
-          <div className="bg-white dark:bg-black/20 rounded-b-2xl shadow-sm p-4 border-t border-therapy-softPurple/20">
-            <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-              <Button
-                type="button"
-                variant={isRecording ? "destructive" : "ghost"}
-                size="icon"
-                className={`rounded-full ${isRecording ? "animate-pulse" : ""}`}
-                onClick={toggleRecording}
-                disabled={isLoading}
-                title={isRecording ? "Stop recording" : "Start voice recording"}
-              >
-                {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
-              </Button>
-              
-              <Input
-                type="text"
-                placeholder={recordingError || "Type your message..."}
-                className="flex-grow input-therapy"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                disabled={isLoading || isRecording}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-              />
-              
-              <Button
-                type="submit"
-                variant="ghost"
-                size="icon"
-                className="rounded-full bg-therapy-primary text-white hover:bg-therapy-secondary"
-                disabled={!inputMessage.trim() || isLoading || isRecording}
-              >
-                {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
-              </Button>
-            </form>
-            
-            <div className="mt-2 text-xs text-center text-muted-foreground">
-              <p>Ask any question about mental health, coping strategies, or how you're feeling today</p>
-            </div>
-          </div>
+          <ChatInput
+            inputMessage={inputMessage}
+            setInputMessage={setInputMessage}
+            handleSendMessage={handleSendMessage}
+            isRecording={isRecording}
+            toggleRecording={toggleRecording}
+            recordingError={recordingError}
+            isLoading={isLoading}
+          />
         </div>
       </div>
     </Layout>
