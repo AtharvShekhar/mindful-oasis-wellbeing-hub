@@ -42,6 +42,7 @@ const Profile = () => {
       if (data) {
         setFullName(data.full_name || '');
         setAvatarUrl(data.avatar_url || '');
+        // Handle the bio field safely even if it doesn't exist in the database yet
         setBio(data.bio || '');
         
         // Convert created_at to a readable string
