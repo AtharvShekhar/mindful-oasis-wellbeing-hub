@@ -6,7 +6,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +17,7 @@ const Profile = () => {
   const [fullName, setFullName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [joinDate, setJoinDate] = useState<string>("");
+  const [bio, setBio] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -42,15 +42,27 @@ const Profile = () => {
       if (data) {
         setFullName(data.full_name || '');
         setAvatarUrl(data.avatar_url || '');
+        setBio(data.bio || '');
+        
         // Convert created_at to a readable string
-        const createdAt = new Date(data.created_at).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
-        setJoinDate(createdAt);
+        if (data.created_at) {
+          const createdAt = new Date(data.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          setJoinDate(createdAt);
+        } else if (user?.created_at) {
+          const userCreatedAt = new Date(user.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          setJoinDate(userCreatedAt);
+        }
       }
     } catch (error) {
+      console.error("Error loading profile:", error);
       toast({
         title: "Error",
         description: "Error loading profile",
@@ -70,6 +82,7 @@ const Profile = () => {
         .update({
           full_name: fullName,
           avatar_url: avatarUrl,
+          bio: bio,
           updated_at: new Date().toISOString()
         })
         .eq('id', user?.id);
@@ -83,6 +96,7 @@ const Profile = () => {
         description: "Profile updated successfully"
       });
     } catch (error) {
+      console.error("Error updating profile:", error);
       toast({
         title: "Error",
         description: "Error updating profile",
@@ -115,35 +129,54 @@ const Profile = () => {
                 </Avatar>
               </CardHeader>
               <CardContent>
-                <form onSubmit={updateProfile} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="Enter your full name"
-                    />
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-pulse text-center">
+                      <p className="text-muted-foreground">Loading profile information...</p>
+                    </div>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="avatar">Avatar URL</Label>
-                    <Input
-                      id="avatar"
-                      type="text"
-                      value={avatarUrl}
-                      onChange={(e) => setAvatarUrl(e.target.value)}
-                      placeholder="Enter avatar URL"
-                    />
-                  </div>
+                ) : (
+                  <form onSubmit={updateProfile} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input
+                        id="name"
+                        type="text"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="Enter your full name"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="avatar">Avatar URL</Label>
+                      <Input
+                        id="avatar"
+                        type="text"
+                        value={avatarUrl}
+                        onChange={(e) => setAvatarUrl(e.target.value)}
+                        placeholder="Enter avatar URL"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="bio">Bio</Label>
+                      <Input
+                        id="bio"
+                        type="text"
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        placeholder="A brief description about yourself"
+                      />
+                    </div>
 
-                  <div className="pt-4">
-                    <Button type="submit" disabled={loading}>
-                      {loading ? "Updating..." : "Update Profile"}
-                    </Button>
-                  </div>
-                </form>
+                    <div className="pt-4">
+                      <Button type="submit" disabled={loading}>
+                        {loading ? "Updating..." : "Update Profile"}
+                      </Button>
+                    </div>
+                  </form>
+                )}
 
                 <div className="mt-6 pt-6 border-t">
                   <h3 className="text-lg font-semibold mb-4">Account Information</h3>
@@ -152,7 +185,7 @@ const Profile = () => {
                       Email: {user.email}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Member since: {joinDate}
+                      Member since: {joinDate || "Unknown"}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       Days on platform: {timeOnPlatform()}
