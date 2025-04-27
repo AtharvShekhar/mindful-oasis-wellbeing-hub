@@ -22,6 +22,10 @@ serve(async (req) => {
       throw new Error("No message provided in the request body");
     }
 
+    if (!openAIApiKey) {
+      throw new Error("OpenAI API key is not configured");
+    }
+
     // Enhanced system message for better therapy responses
     const systemMessage = {
       role: "system",
@@ -51,6 +55,8 @@ Remember that your role is supportive, not to replace professional mental health
       { role: "user", content: message }
     ];
 
+    console.log("Sending request to OpenAI with messages:", JSON.stringify(messages));
+
     // Call OpenAI API with improved error handling and retry mechanism
     let response;
     let retryCount = 0;
@@ -74,7 +80,27 @@ Remember that your role is supportive, not to replace professional mental health
           }),
         });
 
-        if (response.ok) break;
+        // Check if the response is ok (status in the range 200-299)
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Validate response format
+          if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+            throw new Error("Unexpected response format from OpenAI");
+          }
+
+          const aiResponse = data.choices[0].message.content;
+          console.log("Received valid response from OpenAI");
+
+          return new Response(
+            JSON.stringify({ 
+              response: aiResponse,
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+          );
+        }
         
         // If we get a rate limit error, wait and retry
         if (response.status === 429) {
@@ -82,13 +108,14 @@ Remember that your role is supportive, not to replace professional mental health
           await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
           retryCount++;
         } else {
-          // For other errors, don't retry
-          break;
+          // For other errors, get response text and throw
+          const errorText = await response.text();
+          throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
         }
       } catch (error) {
-        console.error("Network error in OpenAI API call:", error);
+        console.error("Error in OpenAI API call:", error);
         if (retryCount < maxRetries) {
-          console.log(`Retrying after network error. Attempt ${retryCount + 1} of ${maxRetries}`);
+          console.log(`Retrying after error. Attempt ${retryCount + 1} of ${maxRetries}`);
           await new Promise(r => setTimeout(r, 1000));
           retryCount++;
         } else {
@@ -97,22 +124,9 @@ Remember that your role is supportive, not to replace professional mental health
       }
     }
 
-    const data = await response.json();
-    
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      throw new Error("Unexpected response format from OpenAI");
-    }
+    // If we've exhausted retries or had other errors
+    throw new Error("Failed to get response after retries");
 
-    const aiResponse = data.choices[0].message.content;
-
-    return new Response(
-      JSON.stringify({ 
-        response: aiResponse,
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
   } catch (error) {
     console.error("Error in AI chat function:", error);
     return new Response(
