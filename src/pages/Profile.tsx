@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
+import { Textarea } from "@/components/ui/textarea";
 
 const Profile = () => {
   const { user } = useAuth();
@@ -42,10 +42,8 @@ const Profile = () => {
       if (data) {
         setFullName(data.full_name || '');
         setAvatarUrl(data.avatar_url || '');
-        // Handle the bio field safely even if it doesn't exist in the database yet
         setBio(data.bio || '');
         
-        // Convert created_at to a readable string
         if (data.created_at) {
           const createdAt = new Date(data.created_at).toLocaleDateString('en-US', {
             year: 'numeric',
@@ -162,12 +160,12 @@ const Profile = () => {
                     
                     <div className="space-y-2">
                       <Label htmlFor="bio">Bio</Label>
-                      <Input
+                      <Textarea
                         id="bio"
-                        type="text"
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
-                        placeholder="A brief description about yourself"
+                        placeholder="Tell us a bit about yourself"
+                        className="min-h-[100px]"
                       />
                     </div>
 
