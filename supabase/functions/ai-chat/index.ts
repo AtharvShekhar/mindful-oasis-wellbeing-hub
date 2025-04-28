@@ -64,6 +64,11 @@ Remember that your role is supportive, not to replace professional mental health
 
     while (retryCount <= maxRetries) {
       try {
+        // Validate API key format before making the request
+        if (!openAIApiKey.startsWith("sk-") || openAIApiKey.length < 20) {
+          throw new Error("Invalid OpenAI API key format. Please check your API key.");
+        }
+
         response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -107,11 +112,19 @@ Remember that your role is supportive, not to replace professional mental health
           console.log(`Rate limited, retrying after delay. Attempt ${retryCount + 1} of ${maxRetries}`);
           await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
           retryCount++;
-        } else {
-          // For other errors, get response text and throw
-          const errorText = await response.text();
-          throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+          continue;
         }
+
+        // For authentication errors, provide a clear message
+        if (response.status === 401) {
+          const errorText = await response.text();
+          console.error("Authentication error with OpenAI API:", errorText);
+          throw new Error("Invalid OpenAI API key. Please check your credentials.");
+        }
+        
+        // For other errors, get response text and throw
+        const errorText = await response.text();
+        throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
       } catch (error) {
         console.error("Error in OpenAI API call:", error);
         if (retryCount < maxRetries) {
@@ -129,12 +142,15 @@ Remember that your role is supportive, not to replace professional mental health
 
   } catch (error) {
     console.error("Error in AI chat function:", error);
+    
+    // Return a friendly error message
     return new Response(
       JSON.stringify({ 
-        error: `Error processing request: ${error.message}`
+        error: `Error processing request: ${error.message}`,
+        response: "I'm having trouble connecting right now. Please try again in a moment, or let me know how else I can help you."
       }),
       { 
-        status: 500,
+        status: 200, // Return 200 even for errors so the frontend can handle it gracefully
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );

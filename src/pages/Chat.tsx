@@ -27,6 +27,7 @@ const Chat = () => {
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [recordingError, setRecordingError] = useState("");
   const [errorRetries, setErrorRetries] = useState(0);
+  const [connectionError, setConnectionError] = useState(false);
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -59,6 +60,7 @@ const Chat = () => {
 
   const generateResponse = async (userMessage: string) => {
     setIsLoading(true);
+    setConnectionError(false);
     
     try {
       const fallbackResponses = [
@@ -102,8 +104,37 @@ const Chat = () => {
 
       setErrorRetries(0);
 
-      if (!data || !data.response) {
+      if (!data) {
         throw new Error("No response received from AI");
+      }
+      
+      if (data.error) {
+        console.warn("AI chat function returned an error:", data.error);
+        if (data.response) {
+          const newMessage: Message = {
+            id: Date.now().toString(),
+            content: data.response,
+            sender: "ai",
+            timestamp: new Date(),
+            sentiment: { score: 0, dominant: "neutral" }
+          };
+          
+          setMessages(prev => [...prev, newMessage]);
+          
+          toast({
+            title: "Connection Issue",
+            description: "Using fallback response. The issue has been logged.",
+            variant: "destructive"
+          });
+          
+          setConnectionError(true);
+          return;
+        }
+        throw new Error(data.error);
+      }
+
+      if (!data.response) {
+        throw new Error("No valid response received");
       }
 
       const aiResponse = data.response;
@@ -125,10 +156,11 @@ const Chat = () => {
     } catch (error) {
       console.error("Error generating AI response:", error);
       toast({
-        title: "Error",
-        description: "Failed to get a response. Please try again.",
+        title: "Connection Error",
+        description: "Could not connect to the AI assistant. Please try again.",
         variant: "destructive"
       });
+      setConnectionError(true);
     } finally {
       setIsLoading(false);
     }
@@ -178,6 +210,15 @@ const Chat = () => {
     setInputMessage("");
     
     await generateResponse(messageToSend);
+  };
+
+  const resetConnection = () => {
+    setConnectionError(false);
+    setErrorRetries(0);
+    toast({
+      title: "Reconnecting",
+      description: "Attempting to reconnect to the AI service...",
+    });
   };
 
   const startRecording = async () => {
@@ -291,7 +332,12 @@ const Chat = () => {
     <Layout>
       <div className="min-h-[calc(100vh-64px)] bg-therapy-softPurple/10 dark:bg-therapy-dark/20 flex flex-col">
         <div className="w-full max-w-4xl mx-auto flex-grow flex flex-col px-4 py-6">
-          <ChatHeader isSpeechEnabled={isSpeechEnabled} toggleSpeech={toggleSpeech} />
+          <ChatHeader 
+            isSpeechEnabled={isSpeechEnabled} 
+            toggleSpeech={toggleSpeech} 
+            connectionError={connectionError} 
+            resetConnection={resetConnection} 
+          />
           
           <div className="flex-grow bg-white dark:bg-black/20 p-4 overflow-y-auto">
             <div className="space-y-4">
@@ -313,6 +359,17 @@ const Chat = () => {
                       <div className="w-2 h-2 rounded-full bg-therapy-primary animate-pulse" style={{ animationDelay: "0.4s" }}></div>
                     </div>
                   </div>
+                </div>
+              )}
+              
+              {connectionError && !isLoading && (
+                <div className="flex justify-center my-4">
+                  <button 
+                    onClick={resetConnection}
+                    className="px-4 py-2 bg-therapy-primary text-white rounded-full hover:bg-therapy-secondary transition-colors"
+                  >
+                    Reconnect to AI Service
+                  </button>
                 </div>
               )}
               
