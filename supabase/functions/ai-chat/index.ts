@@ -22,13 +22,38 @@ serve(async (req) => {
       throw new Error("No message provided in the request body");
     }
 
+    // Check if OpenAI API key exists and has valid format
     if (!openAIApiKey) {
-      throw new Error("OpenAI API key is not configured");
+      console.error("OpenAI API key is not configured");
+      return new Response(
+        JSON.stringify({
+          error: "API key configuration error",
+          status: "error",
+          code: "auth_error",
+          response: "I'm unable to connect to my AI service due to a configuration issue. Please try again later."
+        }),
+        { 
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    // Validate API key format
+    // Validate API key format separately - don't throw immediately
     if (!openAIApiKey.startsWith("sk-") || openAIApiKey.length < 40) {
-      throw new Error("Invalid OpenAI API key format. Please check your API key.");
+      console.error("Invalid OpenAI API key format detected");
+      return new Response(
+        JSON.stringify({
+          error: "Invalid API key format",
+          status: "error",
+          code: "auth_error",
+          response: "I'm unable to connect due to an authentication issue. Please contact support for assistance."
+        }),
+        { 
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     // Enhanced system message for better therapy responses
@@ -120,7 +145,19 @@ Remember that your role is supportive, not to replace professional mental health
         if (response.status === 401) {
           const errorText = await response.text();
           console.error("Authentication error with OpenAI API:", errorText);
-          throw new Error("Invalid OpenAI API key. Please check your credentials.");
+          
+          return new Response(
+            JSON.stringify({ 
+              error: "OpenAI API authentication failed",
+              status: "error",
+              code: "auth_error",
+              response: "I'm unable to connect due to an authentication issue. Please contact support for assistance."
+            }),
+            { 
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+          );
         }
         
         // For other errors, get response text and throw
