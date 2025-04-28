@@ -26,6 +26,11 @@ serve(async (req) => {
       throw new Error("OpenAI API key is not configured");
     }
 
+    // Validate API key format
+    if (!openAIApiKey.startsWith("sk-") || openAIApiKey.length < 40) {
+      throw new Error("Invalid OpenAI API key format. Please check your API key.");
+    }
+
     // Enhanced system message for better therapy responses
     const systemMessage = {
       role: "system",
@@ -64,11 +69,6 @@ Remember that your role is supportive, not to replace professional mental health
 
     while (retryCount <= maxRetries) {
       try {
-        // Validate API key format before making the request
-        if (!openAIApiKey.startsWith("sk-") || openAIApiKey.length < 20) {
-          throw new Error("Invalid OpenAI API key format. Please check your API key.");
-        }
-
         response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -100,6 +100,7 @@ Remember that your role is supportive, not to replace professional mental health
           return new Response(
             JSON.stringify({ 
               response: aiResponse,
+              status: "success"
             }),
             { 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -143,10 +144,12 @@ Remember that your role is supportive, not to replace professional mental health
   } catch (error) {
     console.error("Error in AI chat function:", error);
     
-    // Return a friendly error message
+    // Return a more detailed error message
     return new Response(
       JSON.stringify({ 
         error: `Error processing request: ${error.message}`,
+        status: "error",
+        code: error.message.includes("API key") ? "auth_error" : "server_error",
         response: "I'm having trouble connecting right now. Please try again in a moment, or let me know how else I can help you."
       }),
       { 
