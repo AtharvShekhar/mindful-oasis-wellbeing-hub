@@ -90,7 +90,7 @@ Remember that your role is supportive, not to replace professional mental health
     // Call OpenAI API with improved error handling and retry mechanism
     let response;
     let retryCount = 0;
-    const maxRetries = 2;
+    const maxRetries = 3;
 
     while (retryCount <= maxRetries) {
       try {
@@ -107,6 +107,7 @@ Remember that your role is supportive, not to replace professional mental health
             max_tokens: 800,
             frequency_penalty: 0.5,
             presence_penalty: 0.5,
+            timeout: 30000,
           }),
         });
 
@@ -136,7 +137,7 @@ Remember that your role is supportive, not to replace professional mental health
         // If we get a rate limit error, wait and retry
         if (response.status === 429) {
           console.log(`Rate limited, retrying after delay. Attempt ${retryCount + 1} of ${maxRetries}`);
-          await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
+          await new Promise(r => setTimeout(r, 2000 * (retryCount + 1)));
           retryCount++;
           continue;
         }
@@ -162,20 +163,55 @@ Remember that your role is supportive, not to replace professional mental health
         
         // For other errors, get response text and throw
         const errorText = await response.text();
-        throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+        console.error(`OpenAI API error (${response.status}): ${errorText}`);
+        
+        // If we haven't reached max retries, wait and try again
+        if (retryCount < maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
+          retryCount++;
+          continue;
+        }
+        
+        // If we've exhausted retries, return a meaningful error
+        return new Response(
+          JSON.stringify({
+            error: `OpenAI service error (${response.status})`,
+            status: "error",
+            code: "api_error",
+            response: "I'm having difficulty processing your request right now. Let's try again in a moment."
+          }),
+          { 
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
       } catch (error) {
         console.error("Error in OpenAI API call:", error);
+        
+        // Network errors or unexpected exceptions
         if (retryCount < maxRetries) {
           console.log(`Retrying after error. Attempt ${retryCount + 1} of ${maxRetries}`);
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 1500 * (retryCount + 1)));
           retryCount++;
         } else {
-          throw error;
+          // If we've exhausted retries, return a meaningful error response
+          return new Response(
+            JSON.stringify({
+              error: `API communication error: ${error.message}`,
+              status: "error",
+              code: "network_error",
+              response: "I'm having trouble connecting right now. Please check your internet connection and try again."
+            }),
+            { 
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+          );
         }
       }
     }
 
-    // If we've exhausted retries or had other errors
+    // This should never be reached due to the return statements above
     throw new Error("Failed to get response after retries");
 
   } catch (error) {
