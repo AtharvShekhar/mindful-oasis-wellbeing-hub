@@ -22,7 +22,9 @@ serve(async (req) => {
       throw new Error("No message provided in the request body");
     }
 
-    // Check if OpenAI API key exists and has valid format
+    console.log("Checking OpenAI API key configuration...");
+
+    // Check if OpenAI API key exists
     if (!openAIApiKey) {
       console.error("OpenAI API key is not configured");
       return new Response(
@@ -40,14 +42,14 @@ serve(async (req) => {
     }
 
     // Validate API key format separately - don't throw immediately
-    if (!openAIApiKey.startsWith("sk-") || openAIApiKey.length < 40) {
-      console.error("Invalid OpenAI API key format detected");
+    if (!openAIApiKey.startsWith("sk-")) {
+      console.error("Invalid OpenAI API key format detected - key doesn't start with sk-");
       return new Response(
         JSON.stringify({
           error: "Invalid API key format",
           status: "error",
           code: "auth_error",
-          response: "I'm unable to connect due to an invalid API key format. Please ensure you've added a valid OpenAI API key that starts with 'sk-' and is at least 40 characters long."
+          response: "I'm unable to connect due to an invalid API key format. Please ensure you've added a valid OpenAI API key that starts with 'sk-'."
         }),
         { 
           status: 200,
@@ -143,16 +145,16 @@ Remember that your role is supportive, not to replace professional mental health
         }
 
         // For authentication errors, provide a clear message
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 403) {
           const errorText = await response.text();
-          console.error("Authentication error with OpenAI API:", errorText);
+          console.error(`Authentication error (${response.status}) with OpenAI API:`, errorText);
           
           return new Response(
             JSON.stringify({ 
               error: "OpenAI API authentication failed",
               status: "error",
               code: "auth_error",
-              response: "I'm unable to connect to OpenAI. Your API key appears to be invalid or has expired. Please add a valid OpenAI API key in your Supabase Edge Function secrets."
+              response: "I'm unable to connect to OpenAI. Your API key appears to be invalid or has expired. Please make sure you've added a valid OpenAI API key to your Supabase Edge Function secrets and that it has sufficient credits."
             }),
             { 
               status: 200,
