@@ -9,7 +9,7 @@ export function useChatSystem() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      content: "Hello! I'm your virtual therapy assistant. How are you feeling today?",
+      content: "Hello! How can I assist you today?",
       sender: "ai",
       timestamp: new Date(),
     },
@@ -82,10 +82,10 @@ export function useChatSystem() {
     
     try {
       const fallbackResponses = [
-        "I understand how you're feeling. Would you like to talk more about that?",
+        "I understand. Would you like to talk more about that?",
         "Thank you for sharing. Sometimes expressing our thoughts can help us process them better.",
         "I appreciate you opening up. What do you think might help in this situation?",
-        "That's a valid feeling. Would it help to explore some coping strategies together?",
+        "That's a valid feeling. Would it help to explore some strategies together?",
         "I'm here to listen. Would you like to tell me more about what's on your mind?"
       ];
       

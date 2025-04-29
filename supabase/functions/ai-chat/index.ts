@@ -58,23 +58,6 @@ serve(async (req) => {
       );
     }
 
-    // Enhanced system message for better therapy responses
-    const systemMessage = {
-      role: "system",
-      content: `You are Mindful, a compassionate and supportive AI therapy assistant. Your goal is to provide empathetic responses, active listening, and evidence-based guidance.
-
-Guidelines:
-- Respond with warmth and empathy
-- Ask thoughtful follow-up questions to help users explore their thoughts
-- Suggest practical coping strategies when appropriate
-- Maintain a supportive, non-judgmental tone
-- Recognize signs of distress and provide appropriate resources
-- Encourage mindfulness and self-compassion
-- If someone seems to be in crisis, gently encourage them to seek professional help
-
-Remember that your role is supportive, not to replace professional mental health care.`
-    };
-
     // Format conversation for the API
     const formattedPreviousMessages = previousMessages?.map(msg => ({
       role: msg.sender === "user" ? "user" : "assistant",
@@ -82,7 +65,6 @@ Remember that your role is supportive, not to replace professional mental health
     })) || [];
 
     const messages = [
-      systemMessage,
       ...formattedPreviousMessages,
       { role: "user", content: message }
     ];
@@ -103,7 +85,7 @@ Remember that your role is supportive, not to replace professional mental health
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o',
             messages,
             temperature: 0.7,
             max_tokens: 800,

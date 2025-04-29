@@ -23,9 +23,9 @@ export const ChatHeader = ({
           {connectionError ? <AlertCircle className="w-5 h-5" /> : "AI"}
         </div>
         <div className="ml-3">
-          <h2 className="font-semibold">Mindful Assistant</h2>
+          <h2 className="font-semibold">GPT-4o Assistant</h2>
           <p className="text-xs text-gray-500">
-            {connectionError ? 'Connection issues detected' : 'AI-powered therapeutic chat assistant'}
+            {connectionError ? 'Connection issues detected' : 'Powered by OpenAI'}
           </p>
         </div>
         <div className="ml-auto flex space-x-2">
