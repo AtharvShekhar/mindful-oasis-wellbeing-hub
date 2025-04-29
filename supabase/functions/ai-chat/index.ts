@@ -30,7 +30,7 @@ serve(async (req) => {
           error: "API key configuration error",
           status: "error",
           code: "auth_error",
-          response: "I'm unable to connect to my AI service due to a configuration issue. Please try again later."
+          response: "I'm unable to connect to my AI service due to a missing API key. Please add an OpenAI API key in your Supabase Edge Function secrets."
         }),
         { 
           status: 200,
@@ -47,7 +47,7 @@ serve(async (req) => {
           error: "Invalid API key format",
           status: "error",
           code: "auth_error",
-          response: "I'm unable to connect due to an authentication issue. Please contact support for assistance."
+          response: "I'm unable to connect due to an invalid API key format. Please ensure you've added a valid OpenAI API key that starts with 'sk-' and is at least 40 characters long."
         }),
         { 
           status: 200,
@@ -152,7 +152,7 @@ Remember that your role is supportive, not to replace professional mental health
               error: "OpenAI API authentication failed",
               status: "error",
               code: "auth_error",
-              response: "I'm unable to connect due to an authentication issue. Please contact support for assistance."
+              response: "I'm unable to connect to OpenAI. Your API key appears to be invalid or has expired. Please add a valid OpenAI API key in your Supabase Edge Function secrets."
             }),
             { 
               status: 200,
@@ -223,7 +223,7 @@ Remember that your role is supportive, not to replace professional mental health
         error: `Error processing request: ${error.message}`,
         status: "error",
         code: error.message.includes("API key") ? "auth_error" : "server_error",
-        response: "I'm having trouble connecting right now. Please try again in a moment, or let me know how else I can help you."
+        response: "I'm having trouble connecting right now. Please ensure you've added a valid OpenAI API key and try again."
       }),
       { 
         status: 200, // Return 200 even for errors so the frontend can handle it gracefully
