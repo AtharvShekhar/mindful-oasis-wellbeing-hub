@@ -2,7 +2,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const openAIApiKey = Deno.env.get('OPEN_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,7 +17,7 @@ serve(async (req) => {
 
   try {
     if (!openAIApiKey) {
-      throw new Error("Missing OpenAI API key. Please set the OPENAI_API_KEY in your Supabase environment variables.");
+      throw new Error("Missing OpenAI API key. Please set the OPEN_API_KEY in your Supabase environment variables.");
     }
     
     const { text, voice = 'nova' } = await req.json();
